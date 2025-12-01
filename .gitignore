@@ -1,45 +1,61 @@
-.gradle
+# ============ Build ============
+.gradle/
 build/
+out/
+bin/
 !gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
 
-### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+# ============ IDE ============
+# IntelliJ IDEA
+.idea/
 *.iws
 *.iml
 *.ipr
-out/
-!**/src/main/**/out/
-!**/src/test/**/out/
 
-### Kotlin ###
-.kotlin
+# VS Code
+.vscode/
 
-### Eclipse ###
-.apt_generated
+# Eclipse
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
 .sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
+.apt_generated
 
-### NetBeans ###
+# NetBeans
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 
-### VS Code ###
-.vscode/
+# Cursor
+.cursor/
 
-### Mac OS ###
+# ============ Kotlin ============
+.kotlin/
+
+# ============ Secrets & Config ============
+local.properties
+.env
+*.env.local
+.run/
+
+# ============ Project Specific ============
+# API Documentation (large file)
+docs.yml
+
+# Helper scripts
+run.bat
+
+# ============ OS ============
 .DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ============ Logs ============
+*.log
+logs/
