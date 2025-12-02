@@ -4,15 +4,11 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
-// ============ OAuth Models ============
-
 @Serializable
 data class GigaChatTokenResponse(
     @SerialName("access_token") val accessToken: String,
     @SerialName("expires_at") val expiresAt: Long
 )
-
-// ============ Chat Request Models ============
 
 @Serializable
 data class GigaChatRequest(
@@ -38,8 +34,6 @@ data class GigaChatFunctionCallResult(
     val name: String,
     val arguments: JsonObject
 )
-
-// ============ Function Definition Models ============
 
 @Serializable
 data class GigaChatFunction(
@@ -69,8 +63,6 @@ data class GigaChatFewShotExample(
     val request: String,
     val params: JsonObject
 )
-
-// ============ Chat Response Models ============
 
 @Serializable
 data class GigaChatResponse(
@@ -103,4 +95,3 @@ data class GigaChatUsage(
     @SerialName("total_tokens") val totalTokens: Int,
     @SerialName("precached_prompt_tokens") val precachedPromptTokens: Int? = null
 )
-

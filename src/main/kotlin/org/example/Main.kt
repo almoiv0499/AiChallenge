@@ -24,19 +24,23 @@ private suspend fun runChatLoop(agent: GigaChatAgent, client: GigaChatClient) {
         val input = readlnOrNull()?.trim() ?: continue
         if (input.isEmpty()) continue
         when {
-            isExitCommand(input) -> {
-                ConsoleUI.printGoodbye()
-                client.close()
-                return
-            }
-            isClearCommand(input) -> {
-                agent.clearHistory()
-                ConsoleUI.printHistoryCleared()
-            }
-            isHelpCommand(input) -> ConsoleUI.printHelp()
+            input.isExitCommand() -> handleExit(client)
+            input.isClearCommand() -> handleClear(agent)
+            input.isHelpCommand() -> ConsoleUI.printHelp()
             else -> processUserMessage(agent, input)
         }
     }
+}
+
+private fun handleExit(client: GigaChatClient): Nothing {
+    ConsoleUI.printGoodbye()
+    client.close()
+    kotlin.system.exitProcess(0)
+}
+
+private fun handleClear(agent: GigaChatAgent) {
+    agent.clearHistory()
+    ConsoleUI.printHistoryCleared()
 }
 
 private suspend fun processUserMessage(agent: GigaChatAgent, input: String) {
@@ -49,11 +53,8 @@ private suspend fun processUserMessage(agent: GigaChatAgent, input: String) {
     }
 }
 
-private fun isExitCommand(input: String): Boolean =
-    input.lowercase() in listOf("/exit", "/quit", "/q")
+private fun String.isExitCommand(): Boolean = lowercase() in listOf("/exit", "/quit", "/q")
 
-private fun isClearCommand(input: String): Boolean =
-    input.lowercase() == "/clear"
+private fun String.isClearCommand(): Boolean = lowercase() == "/clear"
 
-private fun isHelpCommand(input: String): Boolean =
-    input.lowercase() in listOf("/help", "/?")
+private fun String.isHelpCommand(): Boolean = lowercase() in listOf("/help", "/?")
