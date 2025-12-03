@@ -31,7 +31,7 @@ class GigaChatClient(
 
     suspend fun chat(request: GigaChatRequest): GigaChatResponse {
         val token = getValidToken()
-        logRequest(request)
+        logRequest()
         val response = sendChatRequest(token, request)
         validateResponse(response)
         return parseResponse(response)
@@ -82,13 +82,7 @@ class GigaChatClient(
         return result
     }
 
-    private fun logRequest(request: GigaChatRequest) {
-        ConsoleUI.printSendingRequest(
-            model = request.model,
-            messageCount = request.messages.size,
-            functionCount = request.functions?.size ?: 0
-        )
-    }
+    private fun logRequest() = ConsoleUI.printSendingRequest()
 
     private fun logResponse(response: GigaChatResponse) {
         ConsoleUI.printResponseReceived(

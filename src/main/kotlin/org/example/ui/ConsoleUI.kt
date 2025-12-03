@@ -6,7 +6,6 @@ object ConsoleUI {
     private const val SEPARATOR_WIDTH = 60
     private const val SEPARATOR_CHAR = '─'
     private const val HEADER_CHAR = '='
-    private val ANSWER_PATTERN = Regex(""""answer"\s*:\s*"([^"]+)"""")
 
     fun printWelcome() = println(
         """
@@ -63,15 +62,17 @@ object ConsoleUI {
         printSeparator(HEADER_CHAR)
     }
 
-    fun printAssistantMessage(message: String) = println("\n🤖 Ассистент: $message")
-
     fun printResponse(response: ChatResponse) {
         println()
         printSeparator(SEPARATOR_CHAR)
-        println("📝 JSON: ${response.response}")
-        println()
-        val plainAnswer = response.apiResponse?.answer ?: extractAnswerFromResponse(response.response)
-        println("💬 Ответ: $plainAnswer")
+        val isFinalResponse = response.apiResponse != null
+        if (isFinalResponse) {
+            println("📝 JSON: ${response.response}")
+            println()
+            println("💬 Ответ: ${response.apiResponse!!.answer}")
+        } else {
+            println("💬 ${response.response}")
+        }
         printToolCallsIfPresent(response)
         printSeparator(SEPARATOR_CHAR)
         println()
@@ -101,15 +102,9 @@ object ConsoleUI {
 
     fun printFetchingToken() = println("\n🔐 Получение токена доступа...")
 
-    fun printSendingRequest(model: String, messageCount: Int, functionCount: Int) {
-        println("\n📤 Отправка запроса к GigaChat...")
-        println("   Модель: $model")
-        println("   Сообщений: $messageCount")
-        println("   Функций: $functionCount")
-    }
+    fun printSendingRequest() = println("\n📤 Отправка запроса к GigaChat...")
 
     fun printResponseReceived(finishReason: String?, tokensUsed: Int?) {
-        println("📥 Получен ответ от GigaChat")
         println("   Finish reason: $finishReason")
         println("   Токенов использовано: ${tokensUsed ?: "N/A"}")
     }
@@ -125,7 +120,4 @@ object ConsoleUI {
         println("\n🔧 Использованные инструменты:")
         response.toolCalls.forEach { println("   • ${it.toolName}: ${it.result}") }
     }
-
-    private fun extractAnswerFromResponse(response: String): String =
-        ANSWER_PATTERN.find(response)?.groupValues?.get(1) ?: response
 }
