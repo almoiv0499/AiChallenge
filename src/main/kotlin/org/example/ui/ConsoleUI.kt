@@ -1,5 +1,6 @@
 package org.example.ui
 
+import org.example.models.ApiResponse
 import org.example.models.ChatResponse
 
 object ConsoleUI {
@@ -10,7 +11,7 @@ object ConsoleUI {
     fun printWelcome() = println(
         """
         ╔══════════════════════════════════════════════════════════════╗
-        ║           🤖 GigaChat Agent - Терминальный чат 🤖            ║
+        ║         🤖 OpenRouter Agent - Терминальный чат 🤖            ║
         ╠══════════════════════════════════════════════════════════════╣
         ║  Команды:                                                    ║
         ║    /exit  - выход из программы                               ║
@@ -23,7 +24,7 @@ object ConsoleUI {
     fun printHelp() = println(
         """
         
-        📖 Справка по использованию GigaChat Agent:
+        📖 Справка по использованию OpenRouter Agent:
         
         Доступные инструменты:
         • get_current_time - узнать текущее время
@@ -46,13 +47,9 @@ object ConsoleUI {
     )
 
     fun printInitializing() = println("\n🔧 Инициализация...")
-
     fun printReady() = println("\n✅ Агент готов к работе! Введите ваш вопрос:\n")
-
     fun printGoodbye() = println("\n👋 До свидания!")
-
     fun printHistoryCleared() = println("✅ История очищена\n")
-
     fun printUserPrompt() = print("Вы: ")
 
     fun printUserMessage(message: String) {
@@ -65,14 +62,7 @@ object ConsoleUI {
     fun printResponse(response: ChatResponse) {
         println()
         printSeparator(SEPARATOR_CHAR)
-        val isFinalResponse = response.apiResponse != null
-        if (isFinalResponse) {
-            println("📝 JSON: ${response.response}")
-            println()
-            println("💬 Ответ: ${response.apiResponse!!.answer}")
-        } else {
-            println("💬 ${response.response}")
-        }
+        println("📝 Ответ: ${response.response}")
         printToolCallsIfPresent(response)
         printSeparator(SEPARATOR_CHAR)
         println()
@@ -89,29 +79,23 @@ object ConsoleUI {
     fun printToolResult(result: String) = println("   ✅ Результат: $result")
 
     fun printAgentInitialized(model: String, toolCount: Int) {
-        println("🤖 GigaChat Агент инициализирован")
+        println("🤖 OpenRouter Агент инициализирован")
         println("   Модель: $model")
         println("   Инструментов: $toolCount")
     }
 
     fun printToolRegistered(toolName: String) = println("📦 Зарегистрирован инструмент: $toolName")
-
     fun printHistoryClearedLog() = println("🗑️ История разговора очищена")
+    fun printHttpLog(message: String) = println("🌐 HTTP: $message")
+    fun printArgumentParseError(error: String?) = println("   ⚠️ Ошибка парсинга аргументов: $error")
 
-    fun printTokenObtained(expiresAt: String) = println("✅ Токен получен, действителен до: $expiresAt")
-
-    fun printFetchingToken() = println("\n🔐 Получение токена доступа...")
-
-    fun printSendingRequest() = println("\n📤 Отправка запроса к GigaChat...")
+    fun printTemperature(temperature: Double?) = println("🌡️ Temperature: $temperature")
 
     fun printResponseReceived(finishReason: String?, tokensUsed: Int?) {
-        println("   Finish reason: $finishReason")
+        println("📥 Получен ответ от OpenRouter")
+        println("   Статус: $finishReason")
         println("   Токенов использовано: ${tokensUsed ?: "N/A"}")
     }
-
-    fun printHttpLog(message: String) = println("🌐 HTTP: $message")
-
-    fun printArgumentParseError(error: String?) = println("   ⚠️ Ошибка парсинга аргументов: $error")
 
     private fun printSeparator(char: Char) = println(char.toString().repeat(SEPARATOR_WIDTH))
 

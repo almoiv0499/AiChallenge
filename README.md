@@ -1,6 +1,6 @@
-# GigaChat Agent
+# OpenRouter Agent
 
-Простой AI-агент на Kotlin, который работает с GigaChat API от Сбера.
+AI-агент на Kotlin с использованием [OpenRouter API](https://openrouter.ai/docs/api/api-reference/responses/create-responses).
 
 ## Функции агента
 
@@ -11,62 +11,49 @@
 
 ## Требования
 
-- JDK 17+ (установите JAVA_HOME)
+- JDK 17+
 - Gradle (включён в проект как wrapper)
-- Ключ авторизации GigaChat API
+- API ключ OpenRouter
 
 ## Настройка
 
-### 1. Получите ключ авторизации
+### 1. Получите API ключ
 
-Зарегистрируйтесь и получите ключ в [личном кабинете GigaChat](https://developers.sber.ru/portal/products/gigachat-api).
+Зарегистрируйтесь на [OpenRouter](https://openrouter.ai/) и получите API ключ.
 
-### 2. Установите переменную окружения
+### 2. Установите ключ
 
-**Windows (CMD):**
-```cmd
-set GIGACHAT_AUTH_KEY=ваш_ключ_авторизации
+Создайте файл `local.properties` в корне проекта:
+
+```properties
+OPENROUTER_API_KEY=sk-or-v1-ваш_ключ
 ```
 
-**Windows (PowerShell):**
-```powershell
-$env:GIGACHAT_AUTH_KEY="ваш_ключ_авторизации"
-```
+Или установите переменную окружения:
 
-**Linux/macOS:**
 ```bash
-export GIGACHAT_AUTH_KEY=ваш_ключ_авторизации
-```
+# Windows
+set OPENROUTER_API_KEY=sk-or-v1-ваш_ключ
 
-**IntelliJ IDEA:**
-1. Edit Configurations → Main
-2. Environment variables → добавьте `GIGACHAT_AUTH_KEY=ваш_ключ`
+# Linux/macOS
+export OPENROUTER_API_KEY=sk-or-v1-ваш_ключ
+```
 
 ## Запуск
 
-### Windows (CMD)
-```cmd
-set GIGACHAT_AUTH_KEY=ваш_ключ
-gradlew.bat run --console=plain
-```
-
-### Windows (PowerShell)
-```powershell
-$env:GIGACHAT_AUTH_KEY="ваш_ключ"; .\gradlew.bat run --console=plain
-```
-
-### Linux/macOS
 ```bash
-GIGACHAT_AUTH_KEY=ваш_ключ ./gradlew run --console=plain
+# Windows
+gradlew.bat run --console=plain
+
+# Linux/macOS  
+./gradlew run --console=plain
 ```
 
 ## Использование
 
-После запуска вы увидите терминальный интерфейс чата:
-
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║           🤖 GigaChat Agent - Терминальный чат 🤖            ║
+║         🤖 OpenRouter Agent - Терминальный чат 🤖            ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  Команды:                                                    ║
 ║    /exit  - выход из программы                               ║
@@ -81,26 +68,29 @@ GIGACHAT_AUTH_KEY=ваш_ключ ./gradlew run --console=plain
 - "Который сейчас час?"
 - "Сгенерируй случайное число от 1 до 100"
 - "Найди информацию о Kotlin"
-- "Вычисли квадратный корень из 144"
 
 ## Структура проекта
 
 ```
 src/main/kotlin/org/example/
-├── Main.kt                          # Точка входа и терминальный интерфейс
+├── Main.kt                         # Точка входа
+├── config/
+│   ├── AppConfig.kt               # Загрузка конфигурации
+│   └── OpenRouterConfig.kt        # Константы API
+├── ui/
+│   └── ConsoleUI.kt               # Терминальный интерфейс
 ├── agent/
-│   └── GigaChatAgent.kt            # AI агент с поддержкой function calling
+│   └── OpenRouterAgent.kt         # AI агент с tool calling
 ├── client/
-│   └── GigaChatClient.kt           # HTTP клиент для GigaChat API
+│   └── OpenRouterClient.kt        # HTTP клиент
 ├── models/
-│   └── GigaChatModels.kt           # Модели данных API
+│   ├── OpenRouterModels.kt        # Модели API
+│   └── Models.kt                  # Общие модели
 └── tools/
-    └── GigaChatTools.kt            # Инструменты агента
+    └── OpenRouterTools.kt         # Инструменты агента
 ```
 
 ## API Reference
 
-Агент использует GigaChat API:
-- Авторизация: `https://ngw.devices.sberbank.ru:9443/api/v2/oauth`
-- Chat Completions: `https://gigachat.devices.sberbank.ru/api/v1/chat/completions`
-
+- [OpenRouter API Documentation](https://openrouter.ai/docs/api/api-reference/responses/create-responses)
+- Endpoint: `POST https://openrouter.ai/api/v1/responses`

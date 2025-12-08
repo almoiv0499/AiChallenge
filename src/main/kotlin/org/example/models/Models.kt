@@ -35,7 +35,8 @@ data class ApiResponse(
 data class ChatResponse(
     val response: String,
     val toolCalls: List<ToolCallResult> = emptyList(),
-    val apiResponse: ApiResponse? = null
+    val apiResponse: ApiResponse? = null,
+    val temperature: Double? = null
 )
 
 @Serializable
