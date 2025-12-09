@@ -21,10 +21,11 @@ class OpenRouterClient(private val apiKey: String) {
     private val client = createHttpClient()
 
     suspend fun createResponse(request: OpenRouterRequest): OpenRouterResponse {
-        logRequest(request)
+        val startTime = System.currentTimeMillis()
         val response = sendRequest(request)
+        val responseTimeMs = System.currentTimeMillis() - startTime
         validateResponse(response)
-        return parseResponse(response)
+        return parseResponse(request.temperature, response, responseTimeMs)
     }
 
     fun close() = client.close()
@@ -44,24 +45,25 @@ class OpenRouterClient(private val apiKey: String) {
         }
     }
 
-    private suspend fun parseResponse(response: HttpResponse): OpenRouterResponse {
+    private suspend fun parseResponse(
+        temperature: Double?,
+        response: HttpResponse,
+        responseTimeMs: Long
+    ): OpenRouterResponse {
         val result: OpenRouterResponse = response.body()
-        logResponse(result)
+        logResponse(temperature, result, responseTimeMs)
         if (result.error != null) {
             throw RuntimeException("API Error: ${result.error.code} - ${result.error.message}")
         }
         return result
     }
 
-    private fun logRequest(request: OpenRouterRequest) {
-        ConsoleUI.printTemperature(request.temperature)
-    }
-
-    private fun logResponse(response: OpenRouterResponse) {
-        val outputCount = response.output?.size ?: 0
+    private fun logResponse(temperature: Double?, response: OpenRouterResponse, responseTimeMs: Long) {
         ConsoleUI.printResponseReceived(
+            temperature = temperature,
             finishReason = "completed",
-            tokensUsed = response.usage?.totalTokens
+            tokensUsed = response.usage?.totalTokens,
+            responseTimeMs = responseTimeMs
         )
     }
 

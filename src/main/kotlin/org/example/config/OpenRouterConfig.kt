@@ -2,8 +2,12 @@ package org.example.config
 
 object OpenRouterConfig {
     const val API_URL = "https://openrouter.ai/api/v1/responses"
-    const val DEFAULT_MODEL = "openai/gpt-4o-mini"
+    const val DEFAULT_MODEL = Models.OPEN_AI
     const val MAX_AGENT_ITERATIONS = 5
+    val MODELS_WITHOUT_TOOLS = setOf(
+        "deepseek/deepseek-v3.2"
+    )
+    fun supportsTools(model: String): Boolean = model !in MODELS_WITHOUT_TOOLS
     object Headers {
         const val AUTHORIZATION = "Authorization"
         const val CONTENT_TYPE = "Content-Type"
@@ -29,6 +33,11 @@ object OpenRouterConfig {
         const val COMPLETED = "completed"
         const val INCOMPLETE = "incomplete"
         const val IN_PROGRESS = "in_progress"
+    }
+    object Models {
+        const val OPEN_AI = "openai/gpt-4o-mini-2024-07-18"
+        const val DEEPSEEK = "deepseek/deepseek-v3.2"
+        const val GLM = "z-ai/glm-4.6v"
     }
 }
 

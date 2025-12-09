@@ -89,12 +89,21 @@ object ConsoleUI {
     fun printHttpLog(message: String) = println("🌐 HTTP: $message")
     fun printArgumentParseError(error: String?) = println("   ⚠️ Ошибка парсинга аргументов: $error")
 
-    fun printTemperature(temperature: Double?) = println("🌡️ Temperature: $temperature")
+    fun printDebugIteration(current: Int, max: Int) {
+        println("\n🔄 DEBUG: Итерация $current из $max")
+    }
 
-    fun printResponseReceived(finishReason: String?, tokensUsed: Int?) {
+    fun printDebugOutputItems(items: List<Any>) {
+        println("🔍 DEBUG: Получено ${items.size} элементов в output:")
+        items.forEachIndexed { index, item -> println("   [$index] $item") }
+    }
+
+    fun printResponseReceived(temperature: Double?, finishReason: String?, tokensUsed: Int?, responseTimeMs: Long?) {
         println("📥 Получен ответ от OpenRouter")
         println("   Статус: $finishReason")
         println("   Токенов использовано: ${tokensUsed ?: "N/A"}")
+        println("   ⏱️ Время ответа: ${responseTimeMs?.let { "${it}ms" } ?: "N/A"}")
+        println("🌡️ Temperature: $temperature")
     }
 
     private fun printSeparator(char: Char) = println(char.toString().repeat(SEPARATOR_WIDTH))

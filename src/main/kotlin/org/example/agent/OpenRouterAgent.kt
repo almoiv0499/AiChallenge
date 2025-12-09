@@ -16,7 +16,7 @@ class OpenRouterAgent(
     private val toolRegistry: ToolRegistry,
     private val model: String = OpenRouterConfig.DEFAULT_MODEL
 ) {
-    private val temperature: Double = OpenRouterConfig.Temperature.VERY_HIGH
+    private val temperature: Double = OpenRouterConfig.Temperature.DEFAULT
     private val conversationHistory = mutableListOf<JsonElement>()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
@@ -39,9 +39,13 @@ class OpenRouterAgent(
 
     private suspend fun executeAgentLoop(): ChatResponse {
         val toolCallResults = mutableListOf<ToolCallResult>()
-        repeat(OpenRouterConfig.MAX_AGENT_ITERATIONS) {
+        repeat(OpenRouterConfig.MAX_AGENT_ITERATIONS) { iteration ->
+            ConsoleUI.printDebugIteration(iteration + 1, OpenRouterConfig.MAX_AGENT_ITERATIONS)
             val response = sendRequest()
-            val output = response.output ?: return createErrorResponse("Пустой ответ от API", toolCallResults)
+            val output = response.output ?: return createErrorResponse(
+                "Пустой ответ от API",
+                toolCallResults
+            )
             for (item in output) {
                 when (item.type) {
                     "message" -> {
@@ -57,6 +61,7 @@ class OpenRouterAgent(
                             )
                         }
                     }
+
                     "function_call" -> {
                         addFunctionCallToHistory(item)
                         val result = handleFunctionCall(item, toolCallResults)
@@ -71,7 +76,11 @@ class OpenRouterAgent(
     }
 
     private suspend fun sendRequest(): OpenRouterResponse {
-        val tools = toolRegistry.getToolDefinitions().takeIf { it.isNotEmpty() }
+        val tools = if (OpenRouterConfig.supportsTools(model)) {
+            toolRegistry.getToolDefinitions().takeIf { it.isNotEmpty() }
+        } else {
+            null
+        }
         val request = OpenRouterRequest(
             model = model,
             input = conversationHistory.toList(),
@@ -81,7 +90,10 @@ class OpenRouterAgent(
         return client.createResponse(request)
     }
 
-    private fun handleFunctionCall(item: OpenRouterOutputItem, results: MutableList<ToolCallResult>): String? {
+    private fun handleFunctionCall(
+        item: OpenRouterOutputItem,
+        results: MutableList<ToolCallResult>
+    ): String? {
         val toolName = item.name ?: return null
         val argumentsStr = item.arguments ?: "{}"
         val arguments = parseArguments(argumentsStr)
@@ -129,7 +141,12 @@ class OpenRouterAgent(
             role = "system",
             content = listOf(OpenRouterInputContentItem(type = "input_text", text = SYSTEM_PROMPT))
         )
-        conversationHistory.add(json.encodeToJsonElement(OpenRouterInputMessage.serializer(), message))
+        conversationHistory.add(
+            json.encodeToJsonElement(
+                OpenRouterInputMessage.serializer(),
+                message
+            )
+        )
     }
 
     private fun addUserMessage(message: String) {
@@ -155,12 +172,22 @@ class OpenRouterAgent(
             name = item.name ?: "",
             arguments = item.arguments ?: "{}"
         )
-        conversationHistory.add(json.encodeToJsonElement(OpenRouterFunctionCallInput.serializer(), functionCall))
+        conversationHistory.add(
+            json.encodeToJsonElement(
+                OpenRouterFunctionCallInput.serializer(),
+                functionCall
+            )
+        )
     }
 
     private fun addFunctionResultToHistory(callId: String, result: String) {
         val output = OpenRouterFunctionCallOutput(callId = callId, output = result)
-        conversationHistory.add(json.encodeToJsonElement(OpenRouterFunctionCallOutput.serializer(), output))
+        conversationHistory.add(
+            json.encodeToJsonElement(
+                OpenRouterFunctionCallOutput.serializer(),
+                output
+            )
+        )
     }
 
     private fun parseApiResponse(text: String): ApiResponse? {
@@ -170,8 +197,20 @@ class OpenRouterAgent(
 
     companion object {
         private val SYSTEM_PROMPT = """
-            Ты — генератор идей. На любой запрос пользователя ты обязан придумывать новый, оригинальный и необычный вариант ответа, избегая шаблонности. Каждый ответ должен отличаться от предыдущих по структуре, стилю и неожиданности. Если пользователь задаёт один и тот же вопрос несколько раз, ты всё равно должен создавать полностью новый, уникальный результат. Не используй клише и очевидные решения. Твоя задача — проявлять максимальную вариативность мышления.
-        """.trimIndent()
+      Отвечай строго по следующим правилам:
+      1. Ты — эксперт по любым вопросам, всегда даёшь точные, проверяемые и уникальные ответы.
+      2. Отвечай только по существу, без лишних рассуждений.
+      3. Структурируй информацию: короткие абзацы, списки, шаги, если это повышает ясность.
+      4. При неоднозначности — сначала запроси уточнение.
+      5. В сложных темах — разделяй ответ на части и объясняй кратко.
+      6. Если данных нет — отвечай “Не знаю”.
+      7. Не используй лишние вводные, не давай оценочных суждений, если их не просят.
+      8. Не повторяй одну и ту же мысль разными словами.
+      9. Всегда следуй формату:
+      Краткий ответ (1–2 предложения)
+      Основная часть
+      Вывод (1 фраза)
+      """.trimIndent()
     }
 }
 
