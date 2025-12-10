@@ -11,7 +11,8 @@ data class OpenRouterRequest(
     val input: List<JsonElement>,
     val tools: List<OpenRouterTool>? = null,
     val temperature: Double? = OpenRouterConfig.Temperature.VERY_HIGH,
-    @SerialName("top_p") val topP: Double? = 0.9
+    @SerialName("top_p") val topP: Double? = 0.9,
+    @SerialName("max_output_tokens") val maxTokens: Double? = OpenRouterConfig.MAX_TOKENS
 )
 
 @Serializable

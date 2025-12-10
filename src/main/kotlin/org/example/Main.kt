@@ -3,7 +3,9 @@ package org.example
 import kotlinx.coroutines.runBlocking
 import org.example.agent.OpenRouterAgent
 import org.example.client.OpenRouterClient
+import org.example.client.TokenLimitExceededException
 import org.example.config.AppConfig
+import org.example.config.OpenRouterConfig
 import org.example.tools.ToolRegistry
 import org.example.ui.ConsoleUI
 
@@ -34,6 +36,10 @@ private suspend fun runChatLoop(agent: OpenRouterAgent, client: OpenRouterClient
                 ConsoleUI.printHistoryCleared()
             }
             isHelpCommand(input) -> ConsoleUI.printHelp()
+            isToolsCommand(input) -> {
+                OpenRouterConfig.ENABLE_TOOLS = !OpenRouterConfig.ENABLE_TOOLS
+                ConsoleUI.printToolsStatus(OpenRouterConfig.ENABLE_TOOLS)
+            }
             else -> processUserMessage(agent, input)
         }
     }
@@ -43,6 +49,8 @@ private suspend fun processUserMessage(agent: OpenRouterAgent, input: String) {
     try {
         val response = agent.processMessage(input)
         ConsoleUI.printResponse(response)
+    } catch (e: TokenLimitExceededException) {
+        ConsoleUI.printTokenLimitExceeded()
     } catch (e: Exception) {
         ConsoleUI.printError(e.message)
         e.printStackTrace()
@@ -57,3 +65,6 @@ private fun isClearCommand(input: String): Boolean =
 
 private fun isHelpCommand(input: String): Boolean =
     input.lowercase() in listOf("/help", "/?")
+
+private fun isToolsCommand(input: String): Boolean =
+    input.lowercase() in listOf("/tools", "/tool")

@@ -17,6 +17,7 @@ object ConsoleUI {
         ║    /exit  - выход из программы                               ║
         ║    /clear - очистить историю разговора                       ║
         ║    /help  - показать справку                                 ║
+        ║    /tools - переключить отправку инструментов                ║
         ╚══════════════════════════════════════════════════════════════╝
         """.trimIndent()
     )
@@ -42,6 +43,7 @@ object ConsoleUI {
         • /exit  - выход
         • /clear - очистить историю
         • /help  - эта справка
+        • /tools - переключить отправку инструментов (вкл/выкл)
         
         """.trimIndent()
     )
@@ -50,6 +52,15 @@ object ConsoleUI {
     fun printReady() = println("\n✅ Агент готов к работе! Введите ваш вопрос:\n")
     fun printGoodbye() = println("\n👋 До свидания!")
     fun printHistoryCleared() = println("✅ История очищена\n")
+    fun printToolsStatus(enabled: Boolean) {
+        val status = if (enabled) "включены" else "выключены"
+        val emoji = if (enabled) "✅" else "❌"
+        println("$emoji Инструменты $status")
+        if (!enabled) {
+            println("   💡 Запросы будут использовать меньше токенов")
+        }
+        println()
+    }
     fun printUserPrompt() = print("Вы: ")
 
     fun printUserMessage(message: String) {
@@ -69,6 +80,16 @@ object ConsoleUI {
     }
 
     fun printError(message: String?) = println("\n❌ Ошибка: $message")
+
+    fun printTokenLimitExceeded() {
+        println("\n⚠️  ПРЕВЫШЕН ЛИМИТ ТОКЕНОВ")
+        println("   Запрос содержит слишком много токенов для обработки.")
+        println("   Модель openai/gpt-4o-mini-2024-07-18 поддерживает до 128,000 токенов контекста.")
+        println("   Попробуйте:")
+        println("   • Сократить длину запроса")
+        println("   • Очистить историю разговора командой /clear")
+        println("   • Разбить запрос на несколько частей")
+    }
 
     fun printToolCall(toolName: String, arguments: Any) {
         println("\n🔧 Вызов инструмента:")
@@ -93,15 +114,39 @@ object ConsoleUI {
         println("\n🔄 DEBUG: Итерация $current из $max")
     }
 
+    fun printRequestDetails(
+        historyItems: Int,
+        historyTokens: Int,
+        toolsCount: Int,
+        toolsTokens: Int,
+        totalEstimated: Int
+    ) {
+        println("\n📊 Детали запроса:")
+        println("   📝 История разговора: $historyItems сообщений (~$historyTokens токенов)")
+        if (toolsCount > 0) {
+            println("   🔧 Инструменты: $toolsCount определений (~$toolsTokens токенов)")
+        }
+        println("   📊 Всего в запросе: ~$totalEstimated токенов")
+    }
+
     fun printDebugOutputItems(items: List<Any>) {
         println("🔍 DEBUG: Получено ${items.size} элементов в output:")
         items.forEachIndexed { index, item -> println("   [$index] $item") }
     }
 
-    fun printResponseReceived(temperature: Double?, finishReason: String?, tokensUsed: Int?, responseTimeMs: Long?) {
+    fun printResponseReceived(
+        temperature: Double?,
+        finishReason: String?,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        totalTokens: Int?,
+        responseTimeMs: Long?
+    ) {
         println("📥 Получен ответ от OpenRouter")
         println("   Статус: $finishReason")
-        println("   Токенов использовано: ${tokensUsed ?: "N/A"}")
+        println("   📤 Токенов на запрос (input): ${inputTokens ?: "N/A"}")
+        println("   📥 Токенов на ответ (output): ${outputTokens ?: "N/A"}")
+        println("   📊 Всего токенов: ${totalTokens ?: "N/A"}")
         println("   ⏱️ Время ответа: ${responseTimeMs?.let { "${it}ms" } ?: "N/A"}")
         println("🌡️ Temperature: $temperature")
     }

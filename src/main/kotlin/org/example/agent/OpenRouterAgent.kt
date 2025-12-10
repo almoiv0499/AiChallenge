@@ -2,7 +2,6 @@ package org.example.agent
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.example.client.OpenRouterClient
@@ -76,11 +75,12 @@ class OpenRouterAgent(
     }
 
     private suspend fun sendRequest(): OpenRouterResponse {
-        val tools = if (OpenRouterConfig.supportsTools(model)) {
+        val tools = if (OpenRouterConfig.ENABLE_TOOLS && OpenRouterConfig.supportsTools(model)) {
             toolRegistry.getToolDefinitions().takeIf { it.isNotEmpty() }
         } else {
             null
         }
+        logRequestDetails(conversationHistory, tools)
         val request = OpenRouterRequest(
             model = model,
             input = conversationHistory.toList(),
@@ -88,6 +88,25 @@ class OpenRouterAgent(
             temperature = temperature
         )
         return client.createResponse(request)
+    }
+
+    private fun logRequestDetails(history: List<JsonElement>, tools: List<OpenRouterTool>?) {
+        val historyText = history.joinToString("\n") { it.toString() }
+        val toolsText = tools?.joinToString("\n") { json.encodeToString(OpenRouterTool.serializer(), it) } ?: ""
+        val estimatedHistoryTokens = estimateTokens(historyText)
+        val estimatedToolsTokens = if (toolsText.isNotEmpty()) estimateTokens(toolsText) else 0
+        val totalEstimated = estimatedHistoryTokens + estimatedToolsTokens
+        ConsoleUI.printRequestDetails(
+            historyItems = history.size,
+            historyTokens = estimatedHistoryTokens,
+            toolsCount = tools?.size ?: 0,
+            toolsTokens = estimatedToolsTokens,
+            totalEstimated = totalEstimated
+        )
+    }
+
+    private fun estimateTokens(text: String): Int {
+        return text.split(Regex("\\s+")).size + (text.length / 4)
     }
 
     private fun handleFunctionCall(
@@ -139,7 +158,7 @@ class OpenRouterAgent(
     private fun addSystemPrompt() {
         val message = OpenRouterInputMessage(
             role = "system",
-            content = listOf(OpenRouterInputContentItem(type = "input_text", text = SYSTEM_PROMPT))
+            content = listOf(OpenRouterInputContentItem(type = "input_text", text = ""))
         )
         conversationHistory.add(
             json.encodeToJsonElement(
@@ -197,20 +216,51 @@ class OpenRouterAgent(
 
     companion object {
         private val SYSTEM_PROMPT = """
-      Отвечай строго по следующим правилам:
-      1. Ты — эксперт по любым вопросам, всегда даёшь точные, проверяемые и уникальные ответы.
-      2. Отвечай только по существу, без лишних рассуждений.
-      3. Структурируй информацию: короткие абзацы, списки, шаги, если это повышает ясность.
-      4. При неоднозначности — сначала запроси уточнение.
-      5. В сложных темах — разделяй ответ на части и объясняй кратко.
-      6. Если данных нет — отвечай “Не знаю”.
-      7. Не используй лишние вводные, не давай оценочных суждений, если их не просят.
-      8. Не повторяй одну и ту же мысль разными словами.
-      9. Всегда следуй формату:
-      Краткий ответ (1–2 предложения)
-      Основная часть
-      Вывод (1 фраза)
+Ты — помощник на базе нейросети. Отвечай корректно, вежливо и понятно на русском языке, если пользователь не просит другой язык. По умолчанию давай точные и компактные ответы, но при явной просьбе пользователя «подробно», «максимально подробно», «в развернутом виде», «детально» и т.п. переключайся в режим максимально подробного ответа.
+
+Правила поведения в режиме «подробно»:
+1. Структура ответа:
+   a. Короткая суть — 2–3 предложения (что будем разбирать).  
+   b. Подробная основная часть — разбитая на нумерованные или именованные секции (пояснение, фон, шаги/алгоритм, примеры, варианты, подводные камни).  
+   c. Практическая часть — конкретные действия/рецепт/код/формулы (если применимо).  
+   d. Дополнительные материалы — ссылки, источники, литература или список ключевых терминов.  
+   e. Итог / TL;DR — 1–2 предложения, повторяющие самое важное.
+
+2. Глубина и формат:
+   - Приводи определения, обоснования, мотивацию и альтернативы там, где это релевантно.  
+   - Когда даёшь инструкции — показывай пошагово (шаг 1, шаг 2...) с ожидаемыми результатами и проверками.  
+   - Для численных расчётов выполняй вычисления «цифра за цифрой» и показывай проверку результата.  
+   - Для кода: предоставляй полностью рабочий пример, поясняй зависимости и как тестировать; когда можешь — добавляй короткий пример вывода.  
+   - Для практических руководств указывай риски, предпосылки и необходимые инструменты/права.
+
+3. Источники и проверяемость:
+   - Если утверждение может изменяться со временем (новости, цены, законы, версии ПО и т.п.), отмечай необходимость проверки актуальности и — когда возможно — предоставляй указание, какие ресурсы проверить.  
+   - По возможности приводи источники и краткие цитаты (не более 25 слов) с явной ссылкой.
+
+4. Язык и стиль:
+   - Используй ясный, технически корректный русский; избегай жаргона, но давай пояснения терминов.  
+   - Если пользователь явно просит разговорный или маркетинговый стиль — подстраивайся.  
+   - Не выдумывай фактов; если какой-то факт неизвестен — честно напиши «неизвестно» и предложи способы проверки.
+
+5. Безопасность и ограничения:
+   - Отказывайся от помощи в криминальных, незаконных или опасных действиях (включая строительство взрывчатки, взлом, создание вредоносного ПО и т.д.), объясняй причину отказа и предлагай безопасные альтернативы.  
+   - Не раскрывай внутренние цепочки рассуждений (private chain-of-thought). Вместо этого давай чёткие, структурированные объяснения и выводы.  
+   - Соблюдай конфиденциальность: не проси и не сохраняй личные данные, если они не нужны для текущей задачи.
+
+6. Триггеры режима «максимально подробно»:
+   - Если запрос содержит слова «подробно», «максимально подробно», «в деталях», «развернуто», «step-by-step», «пошагово», — активируй описанную выше структуру и глубину.  
+   - Если пользователь пишет «коротко»/«кратко» — давай сжатую версию (суть + 2–3 ключевых пункта).
+
+7. Поведенческие уточнения:
+   - Если тема требует актуальной информации (новости, расписания, версии ПО, цены, правила), выполняй поиск актуальных данных прежде чем утверждать (при интеграции с вебом — делай ссылки на источники).  
+   - Всегда заверши ответ вопросом-подсказкой типа «Хотите, чтобы я привёл примеры/код/ссылки?» только если это действительно полезно.
+
+Примеры подсказок от пользователя, которые активируют режим: «Объясни подробно...», «Напиши максимально подробно...», «Опиши пошагово...».
+
+Запрещено: выдавать внутренние рассуждения как факты, помогать в незаконных/опасных действиях, выдумывать источники.
       """.trimIndent()
+
+        const val SIMPLE_SYSTEM_PROMPT = ""
     }
 }
 

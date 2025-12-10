@@ -11,6 +11,8 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import org.example.config.OpenRouterConfig
 import org.example.models.OpenRouterRequest
 import org.example.models.OpenRouterResponse
@@ -41,6 +43,14 @@ class OpenRouterClient(private val apiKey: String) {
     private suspend fun validateResponse(response: HttpResponse) {
         if (!response.status.isSuccess()) {
             val errorBody = response.bodyAsText()
+            val statusCode = response.status.value
+            if (isTokenLimitError(statusCode, errorBody)) {
+                throw TokenLimitExceededException(
+                    message = "Превышен лимит токенов в запросе",
+                    statusCode = statusCode,
+                    errorCode = extractErrorCode(errorBody)
+                )
+            }
             throw RuntimeException("Ошибка API: ${response.status} - $errorBody")
         }
     }
@@ -53,7 +63,14 @@ class OpenRouterClient(private val apiKey: String) {
         val result: OpenRouterResponse = response.body()
         logResponse(temperature, result, responseTimeMs)
         if (result.error != null) {
-            throw RuntimeException("API Error: ${result.error.code} - ${result.error.message}")
+            val error = result.error
+            if (isTokenLimitErrorInResponse(error)) {
+                throw TokenLimitExceededException(
+                    message = error.message ?: "Превышен лимит токенов",
+                    errorCode = error.code
+                )
+            }
+            throw RuntimeException("API Error: ${error.code} - ${error.message}")
         }
         return result
     }
@@ -62,7 +79,9 @@ class OpenRouterClient(private val apiKey: String) {
         ConsoleUI.printResponseReceived(
             temperature = temperature,
             finishReason = "completed",
-            tokensUsed = response.usage?.totalTokens,
+            inputTokens = response.usage?.inputTokens,
+            outputTokens = response.usage?.outputTokens,
+            totalTokens = response.usage?.totalTokens,
             responseTimeMs = responseTimeMs
         )
     }
@@ -87,6 +106,40 @@ class OpenRouterClient(private val apiKey: String) {
                 override fun log(message: String) = ConsoleUI.printHttpLog(message)
             }
             level = LogLevel.INFO
+        }
+    }
+
+    private fun isTokenLimitError(statusCode: Int, errorBody: String): Boolean {
+        return statusCode == HttpStatusCode.PayloadTooLarge.value ||
+                statusCode == HttpStatusCode.BadRequest.value && containsTokenLimitKeywords(errorBody)
+    }
+
+    private fun isTokenLimitErrorInResponse(error: org.example.models.OpenRouterError): Boolean {
+        val message = error.message?.lowercase() ?: ""
+        val code = error.code?.lowercase() ?: ""
+        return containsTokenLimitKeywords(message) || containsTokenLimitKeywords(code)
+    }
+
+    private fun containsTokenLimitKeywords(text: String): Boolean {
+        val lowerText = text.lowercase()
+        return lowerText.contains("token") && (
+                lowerText.contains("limit") ||
+                lowerText.contains("exceeded") ||
+                lowerText.contains("too large") ||
+                lowerText.contains("maximum") ||
+                lowerText.contains("context_length_exceeded") ||
+                lowerText.contains("request_too_large")
+        )
+    }
+
+    private fun extractErrorCode(errorBody: String): String? {
+        return try {
+            val json = json.parseToJsonElement(errorBody)
+            if (json is JsonObject) {
+                json.jsonObject["code"]?.toString()?.trim('"')
+            } else null
+        } catch (e: Exception) {
+            null
         }
     }
 
