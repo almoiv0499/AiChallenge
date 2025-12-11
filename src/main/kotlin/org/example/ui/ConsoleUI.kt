@@ -158,4 +158,40 @@ object ConsoleUI {
         println("\n🔧 Использованные инструменты:")
         response.toolCalls.forEach { println("   • ${it.toolName}: ${it.result}") }
     }
+
+    fun printHistoryCompressionStarted() {
+        println("\n🗜️  Начато сжатие истории диалога...")
+    }
+
+    fun printHistoryCompressionCompleted(summary: String, tokensBefore: Int, tokensAfter: Int, savedTokens: Int) {
+        println("✅ История диалога успешно сжата")
+        println()
+        println("📝 Созданное резюме:")
+        printSeparator(SEPARATOR_CHAR)
+        println(summary)
+        printSeparator(SEPARATOR_CHAR)
+        println()
+        println("   📊 Токенов до сжатия: ~$tokensBefore")
+        println("   📊 Токенов после сжатия: ~$tokensAfter")
+        println("   💾 Сэкономлено токенов: ~$savedTokens (${if (tokensBefore > 0) (savedTokens * 100 / tokensBefore) else 0}%)")
+        println()
+    }
+
+    fun printHistoryCompressionFailed() {
+        println("⚠️  Не удалось сжать историю диалога, продолжается без сжатия")
+    }
+
+    fun printHistoryCompressionError(error: String?) {
+        println("❌ Ошибка при сжатии истории: ${error ?: "неизвестная ошибка"}")
+    }
+
+    fun printCreatingSummary(messagesCount: Int) {
+        println("   🔄 Создание резюме из $messagesCount сообщений...")
+    }
+
+    fun printCompressionCheck(currentCount: Int, threshold: Int) {
+        if (currentCount > 0 && currentCount % 5 == 0) {
+            println("   💡 Сообщений пользователя: $currentCount/$threshold (компрессия произойдет после $threshold сообщений)")
+        }
+    }
 }

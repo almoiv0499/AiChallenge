@@ -18,6 +18,7 @@ class OpenRouterAgent(
     private val temperature: Double = OpenRouterConfig.Temperature.DEFAULT
     private val conversationHistory = mutableListOf<JsonElement>()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private var userMessageCount: Int = 0
 
     init {
         addSystemPrompt()
@@ -32,6 +33,7 @@ class OpenRouterAgent(
 
     fun clearHistory() {
         conversationHistory.clear()
+        userMessageCount = 0
         addSystemPrompt()
         ConsoleUI.printHistoryClearedLog()
     }
@@ -158,7 +160,7 @@ class OpenRouterAgent(
     private fun addSystemPrompt() {
         val message = OpenRouterInputMessage(
             role = "system",
-            content = listOf(OpenRouterInputContentItem(type = "input_text", text = ""))
+            content = listOf(OpenRouterInputContentItem(type = "input_text", text = SIMPLE_SYSTEM_PROMPT))
         )
         conversationHistory.add(
             json.encodeToJsonElement(
@@ -174,14 +176,16 @@ class OpenRouterAgent(
             content = listOf(OpenRouterInputContentItem(type = "input_text", text = message))
         )
         conversationHistory.add(json.encodeToJsonElement(OpenRouterInputMessage.serializer(), msg))
+        userMessageCount++
     }
 
-    private fun addAssistantMessage(message: String) {
+    private suspend fun addAssistantMessage(message: String) {
         val msg = OpenRouterInputMessage(
             role = "assistant",
             content = listOf(OpenRouterInputContentItem(type = "output_text", text = message))
         )
         conversationHistory.add(json.encodeToJsonElement(OpenRouterInputMessage.serializer(), msg))
+        compressHistoryIfNeeded()
     }
 
     private fun addFunctionCallToHistory(item: OpenRouterOutputItem) {
@@ -207,6 +211,178 @@ class OpenRouterAgent(
                 output
             )
         )
+    }
+
+    private suspend fun compressHistoryIfNeeded() {
+        if (userMessageCount < OpenRouterConfig.HISTORY_COMPRESSION_THRESHOLD) {
+            return
+        }
+        val tokensBefore = estimateHistoryTokens()
+        ConsoleUI.printHistoryCompressionStarted()
+        val summaryMessage = createHistorySummary()
+        if (summaryMessage != null) {
+            replaceMessagesWithSummary(summaryMessage)
+            val tokensAfter = estimateHistoryTokens()
+            val savedTokens = tokensBefore - tokensAfter
+            ConsoleUI.printHistoryCompressionCompleted(summaryMessage, tokensBefore, tokensAfter, savedTokens)
+        } else {
+            ConsoleUI.printHistoryCompressionFailed()
+        }
+    }
+
+    private suspend fun createHistorySummary(): String? {
+        val messagesToSummarize = extractMessagesForSummary()
+        if (messagesToSummarize.isEmpty()) {
+            ConsoleUI.printHistoryCompressionError("Нет сообщений для суммаризации")
+            return null
+        }
+        ConsoleUI.printCreatingSummary(messagesToSummarize.size)
+        val summaryPrompt = buildSummaryPrompt(messagesToSummarize)
+        val summaryRequest = OpenRouterRequest(
+            model = model,
+            input = listOf(
+                json.encodeToJsonElement(
+                    OpenRouterInputMessage.serializer(),
+                    OpenRouterInputMessage(
+                        role = "user",
+                        content = listOf(OpenRouterInputContentItem(type = "input_text", text = summaryPrompt))
+                    )
+                )
+            ),
+            tools = null,
+            temperature = OpenRouterConfig.Temperature.LOW
+        )
+        return try {
+            val response = client.createResponse(summaryRequest)
+            val summary = response.output
+                ?.firstOrNull()
+                ?.let { extractTextContent(it) }
+            if (summary.isNullOrBlank()) {
+                ConsoleUI.printHistoryCompressionError("Получен пустой summary от API")
+                null
+            } else {
+                summary
+            }
+        } catch (e: Exception) {
+            ConsoleUI.printHistoryCompressionError(e.message ?: e.toString())
+            null
+        }
+    }
+
+    private fun estimateHistoryTokens(): Int {
+        val historyText = conversationHistory.joinToString("\n") { it.toString() }
+        return estimateTokens(historyText)
+    }
+
+    private fun extractMessagesForSummary(): List<String> {
+        val keepLast = OpenRouterConfig.HISTORY_COMPRESSION_KEEP_LAST
+        val totalMessages = conversationHistory.size
+        if (totalMessages <= keepLast + 1) {
+            return emptyList()
+        }
+        val messagesToSummarize = totalMessages - keepLast
+        val messages = mutableListOf<String>()
+        for (i in 0 until messagesToSummarize) {
+            val element = conversationHistory[i]
+            try {
+                val jsonObject = element.jsonObject
+                val type = jsonObject["type"]?.jsonPrimitive?.content ?: continue
+                when (type) {
+                    "message" -> {
+                        val message = json.decodeFromJsonElement(OpenRouterInputMessage.serializer(), element)
+                        if (message.role != "system") {
+                            val text = message.content.firstOrNull()?.text ?: continue
+                            val roleLabel = when (message.role) {
+                                "user" -> "Пользователь"
+                                "assistant" -> "Ассистент"
+                                else -> message.role
+                            }
+                            messages.add("$roleLabel: $text")
+                        }
+                    }
+                    "function_call" -> {
+                        val functionCall = json.decodeFromJsonElement(OpenRouterFunctionCallInput.serializer(), element)
+                        messages.add("Вызов функции: ${functionCall.name}(${functionCall.arguments})")
+                    }
+                    "function_call_output" -> {
+                        val functionOutput = json.decodeFromJsonElement(OpenRouterFunctionCallOutput.serializer(), element)
+                        messages.add("Результат функции: ${functionOutput.output}")
+                    }
+                }
+            } catch (e: Exception) {
+                continue
+            }
+        }
+        return messages
+    }
+
+    private fun buildSummaryPrompt(messages: List<String>): String {
+        val conversationText = messages.joinToString("\n\n")
+        return """
+            Ты — помощник для создания краткого резюме диалога. Создай информативное резюме следующего диалога, которое сохраняет:
+            
+            1. Ключевые факты и информацию, упомянутые в разговоре
+            2. Важные решения, которые были приняты
+            3. Контекст и обстоятельства обсуждения
+            4. Тон и стиль общения (формальный/неформальный)
+            5. Результаты вызовов функций и инструментов, если они были использованы
+            
+            Резюме должно быть компактным, но содержательным, чтобы агент мог продолжить диалог с пониманием всего предыдущего контекста.
+            Резюме должно быть на русском языке и написано в формате системного сообщения, описывающего предыдущий разговор.
+            
+            Диалог:
+            $conversationText
+            
+            Резюме (начни с "Ранее в разговоре мы обсуждали:"):
+        """.trimIndent()
+    }
+
+    private fun replaceMessagesWithSummary(summary: String) {
+        val keepLast = OpenRouterConfig.HISTORY_COMPRESSION_KEEP_LAST
+        val totalMessages = conversationHistory.size
+        val messagesToKeep = minOf(keepLast, totalMessages)
+        val systemPromptIndex = conversationHistory.indexOfFirst { element ->
+            try {
+                val jsonObject = element.jsonObject
+                val type = jsonObject["type"]?.jsonPrimitive?.content
+                val role = jsonObject["role"]?.jsonPrimitive?.content
+                type == "message" && role == "system"
+            } catch (e: Exception) {
+                false
+            }
+        }
+        val newHistory = mutableListOf<JsonElement>()
+        if (systemPromptIndex >= 0) {
+            newHistory.add(conversationHistory[systemPromptIndex])
+        }
+        val summaryMessage = OpenRouterInputMessage(
+            role = "system",
+            content = listOf(OpenRouterInputContentItem(type = "input_text", text = "Summary of earlier conversation: $summary"))
+        )
+        newHistory.add(json.encodeToJsonElement(OpenRouterInputMessage.serializer(), summaryMessage))
+        val lastMessages = conversationHistory.takeLast(messagesToKeep)
+        newHistory.addAll(lastMessages)
+        conversationHistory.clear()
+        conversationHistory.addAll(newHistory)
+        userMessageCount = countUserMessagesInLastK(newHistory, keepLast)
+    }
+
+    private fun countUserMessagesInLastK(history: List<JsonElement>, k: Int): Int {
+        val lastMessages = history.takeLast(k)
+        var count = 0
+        for (element in lastMessages) {
+            try {
+                val jsonObject = element.jsonObject
+                val type = jsonObject["type"]?.jsonPrimitive?.content
+                val role = jsonObject["role"]?.jsonPrimitive?.content
+                if (type == "message" && role == "user") {
+                    count++
+                }
+            } catch (e: Exception) {
+                continue
+            }
+        }
+        return count
     }
 
     private fun parseApiResponse(text: String): ApiResponse? {
