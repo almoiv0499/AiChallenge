@@ -189,6 +189,34 @@ object ConsoleUI {
         println("   🔄 Создание резюме из $messagesCount сообщений...")
     }
 
+    fun printDatabaseInitialized(dbPath: String) {
+        println("💾 База данных инициализирована: $dbPath")
+    }
+
+    fun printDatabaseError(error: String?) {
+        println("❌ Ошибка БД: ${error ?: "неизвестная ошибка"}")
+    }
+
+    fun printSummarySaved(id: Long) {
+        println("   💾 Summary сохранен в БД (ID: $id)")
+    }
+
+    fun printSummaryLoaded(summary: String) {
+        println("📂 Загружен сохраненный summary из БД:")
+        printSeparator(SEPARATOR_CHAR)
+        println(summary)
+        printSeparator(SEPARATOR_CHAR)
+        println()
+    }
+
+    fun printNoSavedSummary() {
+        println("ℹ️  Сохраненных summary не найдено, начинаем новый диалог")
+    }
+
+    fun printDatabaseCleared(deleted: Int) {
+        println("🗑️  Очищено summary из БД: $deleted записей")
+    }
+
     fun printCompressionCheck(currentCount: Int, threshold: Int) {
         if (currentCount > 0 && currentCount % 5 == 0) {
             println("   💡 Сообщений пользователя: $currentCount/$threshold (компрессия произойдет после $threshold сообщений)")

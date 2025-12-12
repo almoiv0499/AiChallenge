@@ -38,6 +38,9 @@ dependencies {
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.6")
     
+    // SQLite
+    implementation("org.xerial:sqlite-jdbc:3.44.1.0")
+    
     testImplementation(kotlin("test"))
 }
 

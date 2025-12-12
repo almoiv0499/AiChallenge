@@ -7,13 +7,15 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.example.client.OpenRouterClient
 import org.example.config.OpenRouterConfig
 import org.example.models.*
+import org.example.storage.HistoryStorage
 import org.example.tools.ToolRegistry
 import org.example.ui.ConsoleUI
 
 class OpenRouterAgent(
     private val client: OpenRouterClient,
     private val toolRegistry: ToolRegistry,
-    private val model: String = OpenRouterConfig.DEFAULT_MODEL
+    private val model: String = OpenRouterConfig.DEFAULT_MODEL,
+    private val historyStorage: HistoryStorage = HistoryStorage()
 ) {
     private val temperature: Double = OpenRouterConfig.Temperature.DEFAULT
     private val conversationHistory = mutableListOf<JsonElement>()
@@ -22,6 +24,7 @@ class OpenRouterAgent(
 
     init {
         addSystemPrompt()
+        loadSavedSummary()
         ConsoleUI.printAgentInitialized(model, toolRegistry.getAllTools().size)
     }
 
@@ -34,6 +37,7 @@ class OpenRouterAgent(
     fun clearHistory() {
         conversationHistory.clear()
         userMessageCount = 0
+        historyStorage.clearAllSummaries()
         addSystemPrompt()
         ConsoleUI.printHistoryClearedLog()
     }
@@ -170,6 +174,21 @@ class OpenRouterAgent(
         )
     }
 
+    private fun loadSavedSummary() {
+        val savedSummary = historyStorage.getLatestSummary()
+        if (savedSummary != null) {
+            ConsoleUI.printSummaryLoaded(savedSummary.summary)
+            val summaryMessage = OpenRouterInputMessage(
+                role = "system",
+                content = listOf(OpenRouterInputContentItem(type = "input_text", text = "Summary of earlier conversation: ${savedSummary.summary}"))
+            )
+            conversationHistory.add(json.encodeToJsonElement(OpenRouterInputMessage.serializer(), summaryMessage))
+            userMessageCount = 0
+        } else {
+            ConsoleUI.printNoSavedSummary()
+        }
+    }
+
     private fun addUserMessage(message: String) {
         val msg = OpenRouterInputMessage(
             role = "user",
@@ -218,9 +237,11 @@ class OpenRouterAgent(
             return
         }
         val tokensBefore = estimateHistoryTokens()
+        val messageCountBeforeCompression = userMessageCount
         ConsoleUI.printHistoryCompressionStarted()
         val summaryMessage = createHistorySummary()
         if (summaryMessage != null) {
+            historyStorage.saveSummary(summaryMessage, messageCountBeforeCompression)
             replaceMessagesWithSummary(summaryMessage)
             val tokensAfter = estimateHistoryTokens()
             val savedTokens = tokensBefore - tokensAfter
