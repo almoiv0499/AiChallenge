@@ -5,7 +5,9 @@ import org.example.agent.OpenRouterAgent
 import org.example.client.OpenRouterClient
 import org.example.client.TokenLimitExceededException
 import org.example.config.AppConfig
+import org.example.config.McpConfig
 import org.example.config.OpenRouterConfig
+import org.example.mcp.McpClient
 import org.example.tools.ToolRegistry
 import org.example.ui.ConsoleUI
 
@@ -16,8 +18,24 @@ fun main() = runBlocking {
     val client = OpenRouterClient(apiKey)
     val toolRegistry = ToolRegistry.createDefault()
     val agent = OpenRouterAgent(client, toolRegistry)
+    connectToMcpServer()
     ConsoleUI.printReady()
     runChatLoop(agent, client)
+}
+
+private suspend fun connectToMcpServer() {
+    try {
+        val mcpUrl = McpConfig.MCP_HTTP_URL
+        ConsoleUI.printMcpConnecting(mcpUrl)
+        val mcpClient = McpClient(baseUrl = mcpUrl)
+        val initResult = mcpClient.initialize()
+        ConsoleUI.printMcpConnected(initResult.serverInfo.name, initResult.serverInfo.version)
+        val tools = mcpClient.listTools()
+        ConsoleUI.printMcpTools(tools)
+        mcpClient.close()
+    } catch (e: Exception) {
+        ConsoleUI.printMcpError(e.message ?: "Неизвестная ошибка")
+    }
 }
 
 private suspend fun runChatLoop(agent: OpenRouterAgent, client: OpenRouterClient) {

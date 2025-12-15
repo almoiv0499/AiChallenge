@@ -222,4 +222,29 @@ object ConsoleUI {
             println("   💡 Сообщений пользователя: $currentCount/$threshold (компрессия произойдет после $threshold сообщений)")
         }
     }
+
+    fun printMcpConnecting(serverName: String) {
+        println("🔌 Подключение к MCP серверу: $serverName...")
+    }
+
+    fun printMcpConnected(serverName: String, serverVersion: String) {
+        println("✅ Подключено к MCP серверу: $serverName v$serverVersion")
+    }
+
+    fun printMcpTools(tools: List<org.example.mcp.McpTool>) {
+        if (tools.isEmpty()) {
+            println("   ℹ️  Доступных инструментов не найдено")
+            return
+        }
+        println("   📋 Доступные инструменты (${tools.size}):")
+        tools.forEachIndexed { index, tool ->
+            val description = tool.description?.take(60)?.let { if (it.length == 60) "$it..." else it } ?: "без описания"
+            println("      ${index + 1}. ${tool.name}")
+            println("         └─ $description")
+        }
+    }
+
+    fun printMcpError(error: String) {
+        println("❌ Ошибка MCP: $error")
+    }
 }
