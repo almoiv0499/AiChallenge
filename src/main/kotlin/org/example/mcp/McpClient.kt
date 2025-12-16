@@ -14,7 +14,15 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 class McpClient(
     private val baseUrl: String,
@@ -76,6 +84,53 @@ class McpClient(
         val resultElement = response.result ?: throw McpException("Tools list failed: empty result")
         val result = json.decodeFromJsonElement(ToolsListResult.serializer(), resultElement)
         return result.tools
+    }
+
+    suspend fun callTool(name: String, arguments: JsonElement): JsonElement {
+        val params = buildJsonObject {
+            put("name", name)
+            put("arguments", arguments)
+        }
+        val request = JsonRpcRequest(
+            id = 3,
+            method = "tools/call",
+            params = json.encodeToJsonElement(params)
+        )
+        val response = sendRequest(request)
+        if (response.error != null) {
+            throw McpException("Tool call failed: ${response.error.code} - ${response.error.message}")
+        }
+        val resultElement = response.result ?: throw McpException("Tool call failed: empty result")
+        val resultObject = resultElement.jsonObject ?: throw McpException("Tool call failed: result is not a JSON object")
+        val isError = resultObject["isError"]?.jsonPrimitive?.content?.toBoolean() ?: false
+        if (isError) {
+            val contentElement = resultObject["content"]
+            val contentArray = when {
+                contentElement == null || contentElement is JsonNull -> null
+                contentElement is JsonArray -> contentElement
+                else -> null
+            }
+            val errorText = contentArray?.firstOrNull()
+                ?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown error"
+            throw McpException("Tool execution error: $errorText")
+        }
+        val contentElement = resultObject["content"]
+        val contentArray = when {
+            contentElement == null || contentElement is JsonNull -> null
+            contentElement is JsonArray -> contentElement
+            else -> null
+        }
+        val contentText = contentArray?.firstOrNull()
+            ?.jsonObject?.get("text")?.jsonPrimitive?.content
+            ?: throw McpException("Tool call failed: empty content")
+        if (contentText.isBlank()) {
+            throw McpException("Tool call failed: content is empty")
+        }
+        return try {
+            json.parseToJsonElement(contentText)
+        } catch (e: Exception) {
+            throw McpException("Tool call failed: invalid JSON in content: ${e.message}")
+        }
     }
 
     fun close() {

@@ -86,3 +86,4 @@ data class McpTool(
     val description: String? = null,
     @SerialName("inputSchema") val inputSchema: JsonElement? = null
 )
+

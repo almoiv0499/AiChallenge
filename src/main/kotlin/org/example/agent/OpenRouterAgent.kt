@@ -44,30 +44,33 @@ class OpenRouterAgent(
 
     private suspend fun executeAgentLoop(): ChatResponse {
         val toolCallResults = mutableListOf<ToolCallResult>()
+        var iterationCount = 0
         repeat(OpenRouterConfig.MAX_AGENT_ITERATIONS) { iteration ->
+            iterationCount++
             ConsoleUI.printDebugIteration(iteration + 1, OpenRouterConfig.MAX_AGENT_ITERATIONS)
             val response = sendRequest()
-            val output = response.output ?: return createErrorResponse(
-                "Пустой ответ от API",
-                toolCallResults
-            )
+            val output = response.output
+            if (output == null) {
+                return createErrorResponse(
+                    "Пустой ответ от API",
+                    toolCallResults
+                )
+            }
+            var hasMessage = false
+            var hasFunctionCall = false
+            var finalMessageText: String? = null
             for (item in output) {
                 when (item.type) {
                     "message" -> {
+                        hasMessage = true
                         val text = extractTextContent(item)
                         if (text.isNotEmpty()) {
-                            addAssistantMessage(text)
-                            val apiResponse = parseApiResponse(text)
-                            return ChatResponse(
-                                response = text,
-                                toolCalls = toolCallResults,
-                                apiResponse = apiResponse,
-                                temperature = temperature
-                            )
+                            finalMessageText = text
                         }
                     }
 
                     "function_call" -> {
+                        hasFunctionCall = true
                         addFunctionCallToHistory(item)
                         val result = handleFunctionCall(item, toolCallResults)
                         if (result != null) {
@@ -75,6 +78,22 @@ class OpenRouterAgent(
                         }
                     }
                 }
+            }
+            if (finalMessageText != null && !hasFunctionCall) {
+                addAssistantMessage(finalMessageText)
+                val apiResponse = parseApiResponse(finalMessageText)
+                return ChatResponse(
+                    response = finalMessageText,
+                    toolCalls = toolCallResults,
+                    apiResponse = apiResponse,
+                    temperature = temperature
+                )
+            }
+            if (!hasMessage && !hasFunctionCall) {
+                return createErrorResponse(
+                    "Нет сообщения или вызова функции в ответе",
+                    toolCallResults
+                )
             }
         }
         return createLimitExceededResponse(toolCallResults)
@@ -457,7 +476,7 @@ class OpenRouterAgent(
 Запрещено: выдавать внутренние рассуждения как факты, помогать в незаконных/опасных действиях, выдумывать источники.
       """.trimIndent()
 
-        const val SIMPLE_SYSTEM_PROMPT = ""
+        const val SIMPLE_SYSTEM_PROMPT = """Ты — помощник с доступом к инструментам для работы с Notion API. Когда пользователь просит получить информацию о странице Notion, обязательно используй доступный инструмент get_notion_page. Если пользователь предоставляет ID страницы Notion или URL страницы, извлеки ID и используй инструмент для получения данных. Всегда используй доступные инструменты вместо того, чтобы говорить, что у тебя нет доступа к данным."""
     }
 }
 

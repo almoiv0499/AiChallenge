@@ -111,7 +111,6 @@ object ConsoleUI {
     fun printArgumentParseError(error: String?) = println("   ⚠️ Ошибка парсинга аргументов: $error")
 
     fun printDebugIteration(current: Int, max: Int) {
-        println("\n🔄 DEBUG: Итерация $current из $max")
     }
 
     fun printRequestDetails(
@@ -130,8 +129,6 @@ object ConsoleUI {
     }
 
     fun printDebugOutputItems(items: List<Any>) {
-        println("🔍 DEBUG: Получено ${items.size} элементов в output:")
-        items.forEachIndexed { index, item -> println("   [$index] $item") }
     }
 
     fun printResponseReceived(
@@ -246,5 +243,18 @@ object ConsoleUI {
 
     fun printMcpError(error: String) {
         println("❌ Ошибка MCP: $error")
+    }
+
+    fun printStartingServices() {
+        println("🚀 Запуск локальных сервисов...")
+        println("   🔌 Notion MCP Server: http://localhost:8081")
+    }
+
+    fun printServicesStarted() {
+        println("✅ Локальные сервисы запущены")
+    }
+
+    fun printMcpToolsRegistered(count: Int) {
+        println("✅ Зарегистрировано MCP инструментов: $count")
     }
 }

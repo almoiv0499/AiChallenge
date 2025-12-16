@@ -3,9 +3,9 @@ package org.example.config
 object OpenRouterConfig {
     const val API_URL = "https://openrouter.ai/api/v1/responses"
     const val DEFAULT_MODEL = Models.OPEN_AI
-    const val MAX_AGENT_ITERATIONS = 5
+    const val MAX_AGENT_ITERATIONS = 3
     const val MAX_TOKENS = 5000.0
-    var ENABLE_TOOLS = false
+    var ENABLE_TOOLS = true
     const val HISTORY_COMPRESSION_THRESHOLD = 3
     const val HISTORY_COMPRESSION_KEEP_LAST = 1
     val MODELS_WITHOUT_TOOLS = setOf(
