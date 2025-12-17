@@ -14,10 +14,11 @@ object ConsoleUI {
         ║         🤖 OpenRouter Agent - Терминальный чат 🤖            ║
         ╠══════════════════════════════════════════════════════════════╣
         ║  Команды:                                                    ║
-        ║    /exit  - выход из программы                               ║
-        ║    /clear - очистить историю разговора                       ║
-        ║    /help  - показать справку                                 ║
-        ║    /tools - переключить отправку инструментов                ║
+        ║    /exit         - выход из программы                        ║
+        ║    /clear        - очистить историю разговора                 ║
+        ║    /clear-tasks  - очистить базу данных задач                 ║
+        ║    /help         - показать справку                          ║
+        ║    /tools        - переключить отправку инструментов         ║
         ╚══════════════════════════════════════════════════════════════╝
         """.trimIndent()
     )
@@ -40,10 +41,11 @@ object ConsoleUI {
         • "Найди информацию о Kotlin"
         
         Команды:
-        • /exit  - выход
-        • /clear - очистить историю
-        • /help  - эта справка
-        • /tools - переключить отправку инструментов (вкл/выкл)
+        • /exit        - выход
+        • /clear       - очистить историю разговора
+        • /clear-tasks - очистить базу данных задач
+        • /help        - эта справка
+        • /tools       - переключить отправку инструментов (вкл/выкл)
         
         """.trimIndent()
     )
@@ -212,6 +214,14 @@ object ConsoleUI {
 
     fun printDatabaseCleared(deleted: Int) {
         println("🗑️  Очищено summary из БД: $deleted записей")
+    }
+
+    fun printTasksDatabaseCleared(deleted: Int) {
+        println("🗑️  Очищено задач из БД: $deleted записей\n")
+    }
+
+    fun printTasksDatabaseError(error: String) {
+        println("❌ $error\n")
     }
 
     fun printCompressionCheck(currentCount: Int, threshold: Int) {

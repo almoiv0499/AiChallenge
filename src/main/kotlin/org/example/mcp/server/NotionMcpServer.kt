@@ -29,8 +29,13 @@ import org.example.mcp.JsonRpcResponse
 import org.example.mcp.McpTool
 import org.example.mcp.ToolsListResult
 import org.example.notion.NotionClient
+import org.example.reminder.ReminderService
+import org.example.reminder.SummaryGenerator
 
-class NotionMcpServer(private val notionClient: NotionClient) {
+class NotionMcpServer(
+    private val notionClient: NotionClient,
+    private val reminderService: ReminderService? = null
+) {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -102,9 +107,12 @@ class NotionMcpServer(private val notionClient: NotionClient) {
     }
 
     private fun handleToolsList(request: JsonRpcRequest): JsonRpcResponse {
-        val tools = listOf(
+        val tools = mutableListOf(
             createGetPageTool()
         )
+        if (reminderService != null) {
+            tools.add(createGetActiveTasksTool())
+        }
         val toolsListResult = ToolsListResult(tools = tools)
         val result = json.encodeToJsonElement(ToolsListResult.serializer(), toolsListResult)
         return JsonRpcResponse(id = request.id, result = result)
@@ -157,6 +165,7 @@ class NotionMcpServer(private val notionClient: NotionClient) {
         }
         val result = when (toolName) {
             "get_notion_page" -> executeGetPage(arguments)
+            "get_active_tasks" -> executeGetActiveTasks(arguments)
             else -> buildJsonObject {
                 put("isError", true)
                 put("content", buildJsonArray {
@@ -268,6 +277,57 @@ class NotionMcpServer(private val notionClient: NotionClient) {
             "${cleanId.substring(0, 8)}-${cleanId.substring(8, 12)}-${cleanId.substring(12, 16)}-${cleanId.substring(16, 20)}-${cleanId.substring(20, 32)}"
         } else {
             pageId
+        }
+    }
+
+    private fun createGetActiveTasksTool(): McpTool {
+        return McpTool(
+            name = "get_active_tasks",
+            description = "Получить список активных задач из Notion базы данных. Возвращает все задачи, которые не имеют статус 'Done'. Включает название задачи, статус и дату выполнения (если установлена).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                put("properties", buildJsonObject {})
+                put("required", buildJsonArray {})
+            }
+        )
+    }
+
+    private suspend fun executeGetActiveTasks(arguments: JsonObject): JsonElement {
+        if (reminderService == null) {
+            return buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "Reminder service is not configured. Please set NOTION_DATABASE_ID environment variable.")
+                    })
+                })
+            }
+        }
+        return try {
+            val tasks = reminderService.getAllTasks()
+            val activeTasks = tasks.filter { it.status != "Done" }
+            val completedTasks = tasks.filter { it.status == "Done" }
+            val summary = SummaryGenerator.generateSummary(activeTasks, completedTasks)
+            buildJsonObject {
+                put("isError", false)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", summary)
+                    })
+                })
+            }
+        } catch (e: Exception) {
+            buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "Ошибка при получении активных задач: ${e.message ?: "Неизвестная ошибка"}")
+                    })
+                })
+            }
         }
     }
 }

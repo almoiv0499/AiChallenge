@@ -59,7 +59,12 @@ class WeatherClient(private val apiKey: String) {
                 } else {
                     "{}"
                 }
-                val currentData = json.parseToJsonElement(currentText).jsonObject
+                val currentDataElement = json.parseToJsonElement(currentText)
+                val currentData = when {
+                    currentDataElement is kotlinx.serialization.json.JsonNull -> throw WeatherException("Current weather response is JsonNull")
+                    currentDataElement is kotlinx.serialization.json.JsonObject -> currentDataElement
+                    else -> throw WeatherException("Current weather response is not a JSON object, type: ${currentDataElement.javaClass.simpleName}")
+                }
                 val forecastData = if (forecastText != "{}") {
                     try {
                         val parsed = json.parseToJsonElement(forecastText)

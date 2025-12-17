@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -111,10 +112,28 @@ class WeatherMcpServer(private val weatherClient: WeatherClient) {
     }
 
     private suspend fun handleToolCall(request: JsonRpcRequest): JsonRpcResponse {
-        val params = request.params?.jsonObject ?: return JsonRpcResponse(
-            id = request.id,
-            error = org.example.mcp.JsonRpcError(code = -32602, message = "Invalid params")
-        )
+        val paramsElement = request.params
+        val params = when {
+            paramsElement == null -> {
+                return JsonRpcResponse(
+                    id = request.id,
+                    error = org.example.mcp.JsonRpcError(code = -32602, message = "Invalid params: params is null")
+                )
+            }
+            paramsElement is JsonNull -> {
+                return JsonRpcResponse(
+                    id = request.id,
+                    error = org.example.mcp.JsonRpcError(code = -32602, message = "Invalid params: params is JsonNull")
+                )
+            }
+            paramsElement is JsonObject -> paramsElement
+            else -> {
+                return JsonRpcResponse(
+                    id = request.id,
+                    error = org.example.mcp.JsonRpcError(code = -32602, message = "Invalid params: params is not JsonObject, type: ${paramsElement.javaClass.simpleName}")
+                )
+            }
+        }
         val toolName = params["name"]?.jsonPrimitive?.content
             ?: return JsonRpcResponse(
                 id = request.id,

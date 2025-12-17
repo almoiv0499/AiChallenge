@@ -296,7 +296,12 @@ class McpToolAdapter(
         val lat = weatherObj["lat"]?.jsonPrimitive?.content ?: "N/A"
         val lon = weatherObj["lon"]?.jsonPrimitive?.content ?: "N/A"
         val timezone = weatherObj["timezone"]?.jsonPrimitive?.content ?: "N/A"
-        val current = weatherObj["current"]?.jsonObject
+        val currentElement = weatherObj["current"]
+        val current = when {
+            currentElement == null || currentElement is JsonNull -> null
+            currentElement is JsonObject -> currentElement
+            else -> null
+        }
         val daily = safeGetJsonArray(weatherObj["daily"])
         val hourly = safeGetJsonArray(weatherObj["hourly"])
         return buildString {
@@ -335,14 +340,31 @@ class McpToolAdapter(
             if (daily != null && daily.isNotEmpty()) {
                 appendLine("\n📅 Прогноз на 8 дней:")
                 daily.take(3).forEachIndexed { index, day ->
-                    val dayObj = day.jsonObject
+                    if (day is JsonNull || day !is JsonObject) {
+                        return@forEachIndexed
+                    }
+                    val dayObj = day
                     val dt = dayObj["dt"]?.jsonPrimitive?.content?.toLongOrNull()
-                    val tempObj = dayObj["temp"]?.jsonObject
+                    val tempElement = dayObj["temp"]
+                    val tempObj = when {
+                        tempElement == null || tempElement is JsonNull -> null
+                        tempElement is JsonObject -> tempElement
+                        else -> null
+                    }
                     val tempMax = tempObj?.get("max")?.jsonPrimitive?.content ?: "N/A"
                     val tempMin = tempObj?.get("min")?.jsonPrimitive?.content ?: "N/A"
-                    val weatherArray = dayObj["weather"]?.jsonArray
-                    val weatherDesc = weatherArray?.firstOrNull()?.jsonObject?.let { w ->
-                        w["description"]?.jsonPrimitive?.content ?: w["main"]?.jsonPrimitive?.content ?: ""
+                    val weatherArray = safeGetJsonArray(dayObj["weather"])
+                    val weatherDesc = weatherArray?.firstOrNull()?.let { weatherItem ->
+                        when (weatherItem) {
+                            is JsonNull -> null
+                            is JsonObject -> {
+                                weatherItem["description"]?.jsonPrimitive?.content
+                                    ?: weatherItem["main"]?.jsonPrimitive?.content
+                                    ?: ""
+                            }
+
+                            else -> null
+                        }
                     } ?: "N/A"
                     val dayLabel = when (index) {
                         0 -> "Сегодня"
@@ -355,11 +377,18 @@ class McpToolAdapter(
             if (hourly != null && hourly.isNotEmpty()) {
                 appendLine("\n⏰ Почасовой прогноз (первые 6 часов):")
                 hourly.take(6).forEachIndexed { index, hour ->
-                    val hourObj = hour.jsonObject
+                    if (hour is JsonNull || hour !is JsonObject) {
+                        return@forEachIndexed
+                    }
+                    val hourObj = hour
                     val temp = hourObj["temp"]?.jsonPrimitive?.content ?: "N/A"
                     val weatherArray = safeGetJsonArray(hourObj["weather"])
-                    val weatherDesc = weatherArray?.firstOrNull()?.jsonObject?.let { w ->
-                        w["description"]?.jsonPrimitive?.content ?: ""
+                    val weatherDesc = weatherArray?.firstOrNull()?.let { weatherItem ->
+                        when (weatherItem) {
+                            is JsonNull -> null
+                            is JsonObject -> weatherItem["description"]?.jsonPrimitive?.content ?: ""
+                            else -> null
+                        }
                     } ?: "N/A"
                     appendLine("  Через ${index + 1}ч: $temp°C, $weatherDesc")
                 }

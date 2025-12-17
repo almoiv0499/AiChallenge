@@ -134,9 +134,9 @@ class OpenRouterClient(private val apiKey: String) {
 
     private fun extractErrorCode(errorBody: String): String? {
         return try {
-            val json = json.parseToJsonElement(errorBody)
-            if (json is JsonObject) {
-                json.jsonObject["code"]?.toString()?.trim('"')
+            val jsonElement = json.parseToJsonElement(errorBody)
+            if (jsonElement is JsonObject) {
+                jsonElement["code"]?.toString()?.trim('"')
             } else null
         } catch (e: Exception) {
             null

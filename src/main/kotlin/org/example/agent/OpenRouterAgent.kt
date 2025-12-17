@@ -2,6 +2,8 @@ package org.example.agent
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.example.client.OpenRouterClient
@@ -156,7 +158,11 @@ class OpenRouterAgent(
     private fun parseArguments(argumentsStr: String): Map<String, String> {
         return try {
             val jsonElement = json.parseToJsonElement(argumentsStr)
-            jsonElement.jsonObject.mapValues { it.value.jsonPrimitive.content }
+            when {
+                jsonElement is kotlinx.serialization.json.JsonNull -> emptyMap()
+                jsonElement is kotlinx.serialization.json.JsonObject -> jsonElement.mapValues { it.value.jsonPrimitive?.content ?: "" }
+                else -> emptyMap()
+            }
         } catch (e: Exception) {
             ConsoleUI.printArgumentParseError(e.message)
             emptyMap()
@@ -325,7 +331,11 @@ class OpenRouterAgent(
         for (i in 0 until messagesToSummarize) {
             val element = conversationHistory[i]
             try {
-                val jsonObject = element.jsonObject
+                val jsonObject = when {
+                    element is JsonNull -> continue
+                    element is JsonObject -> element
+                    else -> continue
+                }
                 val type = jsonObject["type"]?.jsonPrimitive?.content ?: continue
                 when (type) {
                     "message" -> {
@@ -383,7 +393,11 @@ class OpenRouterAgent(
         val messagesToKeep = minOf(keepLast, totalMessages)
         val systemPromptIndex = conversationHistory.indexOfFirst { element ->
             try {
-                val jsonObject = element.jsonObject
+                val jsonObject = when {
+                    element is JsonNull -> null
+                    element is JsonObject -> element
+                    else -> null
+                } ?: return
                 val type = jsonObject["type"]?.jsonPrimitive?.content
                 val role = jsonObject["role"]?.jsonPrimitive?.content
                 type == "message" && role == "system"
@@ -412,7 +426,11 @@ class OpenRouterAgent(
         var count = 0
         for (element in lastMessages) {
             try {
-                val jsonObject = element.jsonObject
+                val jsonObject = when {
+                    element is JsonNull -> continue
+                    element is JsonObject -> element
+                    else -> continue
+                }
                 val type = jsonObject["type"]?.jsonPrimitive?.content
                 val role = jsonObject["role"]?.jsonPrimitive?.content
                 if (type == "message" && role == "user") {
