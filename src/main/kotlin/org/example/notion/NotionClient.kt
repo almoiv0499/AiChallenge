@@ -7,6 +7,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -18,6 +19,10 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 class NotionClient(private val apiKey: String) {
     private val json = Json {
@@ -173,6 +178,230 @@ class NotionClient(private val apiKey: String) {
             }
             val responseText = response.bodyAsText()
             json.decodeFromString(NotionPage.serializer(), responseText)
+        }
+    }
+
+    /**
+     * Update a page
+     * 
+     * PATCH /v1/pages/{page_id}
+     * Updates the properties, icon, cover, or archived status of a page.
+     * Only provided fields in the request will be updated (partial update).
+     * 
+     * @param pageId The ID of the page to update
+     * @param request The update request containing properties, icon, cover, or archived status
+     * @return The updated page object
+     * 
+     * @see https://developers.notion.com/reference/patch-page
+     * 
+     * Example usage:
+     * ```kotlin
+     * import kotlinx.serialization.json.*
+     * 
+     * // Update a select property
+     * val selectUpdate = json.encodeToJsonElement(SelectPropertyUpdate(
+     *     select = NotionSelect(name = "In Progress")
+     * )) as JsonObject
+     * val updateRequest = PageUpdateRequest(
+     *     properties = mapOf("Status" to selectUpdate)
+     * )
+     * val updatedPage = client.updatePage(pageId, updateRequest)
+     * 
+     * // Update a date property
+     * val dateUpdate = json.encodeToJsonElement(DatePropertyUpdate(
+     *     date = NotionDate(start = "2025-12-31")
+     * )) as JsonObject
+     * val dateRequest = PageUpdateRequest(
+     *     properties = mapOf("Due Date" to dateUpdate)
+     * )
+     * val updatedPageWithDate = client.updatePage(pageId, dateRequest)
+     * 
+     * // Archive a page
+     * val archiveRequest = PageUpdateRequest(archived = true)
+     * val archivedPage = client.updatePage(pageId, archiveRequest)
+     * ```
+     */
+    suspend fun updatePage(pageId: String, request: PageUpdateRequest): NotionPage {
+        return withContext(Dispatchers.IO) {
+            val formattedPageId = formatIdForApi(pageId)
+            val response = httpClient.patch("$baseUrl/pages/$formattedPageId") {
+                setBody(request)
+            }
+            
+            if (!response.status.isSuccess()) {
+                val errorBody = response.bodyAsText()
+                val errorMessage = try {
+                    val errorResponse = json.decodeFromString(NotionErrorResponse.serializer(), errorBody)
+                    when (errorResponse.code) {
+                        "object_not_found" -> {
+                            "Page not found or not accessible.\n" +
+                            "Requested ID: $formattedPageId\n" +
+                            "Ensure:\n" +
+                            "1. The page exists in your workspace\n" +
+                            "2. The page is shared with your integration\n" +
+                            "3. The page ID is correct"
+                        }
+                        "unauthorized" -> "Unauthorized. Check your API key."
+                        "restricted_resource" -> "Access to resource is restricted. Ensure the integration has necessary permissions."
+                        "validation_error" -> "Validation error: ${errorResponse.message}"
+                        "rate_limited" -> "Rate limit exceeded. Please try again later."
+                        else -> "${errorResponse.message} (code: ${errorResponse.code})"
+                    }
+                } catch (e: Exception) {
+                    "HTTP ${response.status.value}: $errorBody"
+                }
+                throw NotionException(errorMessage)
+            }
+            
+            val responseText = response.bodyAsText()
+            json.decodeFromString(NotionPage.serializer(), responseText)
+        }
+    }
+
+    /**
+     * Update a block
+     * 
+     * PATCH /v1/blocks/{block_id}
+     * Updates the content of a block. Only provided fields will be updated.
+     * 
+     * @param blockId The ID of the block to update
+     * @param request The update request containing block content and optional archived status
+     * @return The updated block object (as JsonObject, since block structure varies by type)
+     * 
+     * @see https://developers.notion.com/reference/update-a-block
+     * 
+     * Example usage:
+     * ```kotlin
+     * // Update a paragraph block
+     * val updateRequest = BlockUpdateRequest(
+     *     paragraph = ParagraphBlockUpdate(
+     *         richText = listOf(
+     *             NotionRichText(
+     *                 type = "text",
+     *                 text = NotionText(content = "Updated paragraph text"),
+     *                 plainText = "Updated paragraph text"
+     *             )
+     *         )
+     *     )
+     * )
+     * val updatedBlock = client.updateBlock(blockId, updateRequest)
+     * 
+     * // Update a to-do block and mark as checked
+     * val toDoRequest = BlockUpdateRequest(
+     *     toDo = ToDoBlockUpdate(
+     *         richText = listOf(
+     *             NotionRichText(
+     *                 type = "text",
+     *                 text = NotionText(content = "Completed task"),
+     *                 plainText = "Completed task"
+     *             )
+     *         ),
+     *         checked = true
+     *     )
+     * )
+     * val updatedToDo = client.updateBlock(blockId, toDoRequest)
+     * 
+     * // Archive a block
+     * val archiveRequest = BlockUpdateRequest(archived = true)
+     * val archivedBlock = client.updateBlock(blockId, archiveRequest)
+     * ```
+     */
+    suspend fun updateBlock(blockId: String, request: BlockUpdateRequest): JsonObject {
+        return withContext(Dispatchers.IO) {
+            val formattedBlockId = formatIdForApi(blockId)
+            val response = httpClient.patch("$baseUrl/blocks/$formattedBlockId") {
+                setBody(request)
+            }
+            
+            if (!response.status.isSuccess()) {
+                val errorBody = response.bodyAsText()
+                val errorMessage = try {
+                    val errorResponse = json.decodeFromString(NotionErrorResponse.serializer(), errorBody)
+                    when (errorResponse.code) {
+                        "object_not_found" -> {
+                            "Block not found or not accessible.\n" +
+                            "Requested ID: $formattedBlockId\n" +
+                            "Ensure:\n" +
+                            "1. The block exists in your workspace\n" +
+                            "2. The block is accessible to your integration\n" +
+                            "3. The block ID is correct"
+                        }
+                        "unauthorized" -> "Unauthorized. Check your API key."
+                        "restricted_resource" -> "Access to resource is restricted. Ensure the integration has necessary permissions."
+                        "validation_error" -> "Validation error: ${errorResponse.message}"
+                        "rate_limited" -> "Rate limit exceeded. Please try again later."
+                        else -> "${errorResponse.message} (code: ${errorResponse.code})"
+                    }
+                } catch (e: Exception) {
+                    "HTTP ${response.status.value}: $errorBody"
+                }
+                throw NotionException(errorMessage)
+            }
+            
+            val responseText = response.bodyAsText()
+            val parsedElement = json.parseToJsonElement(responseText)
+            when (parsedElement) {
+                is JsonObject -> parsedElement
+                else -> throw NotionException("Unexpected response format: expected JsonObject, got ${parsedElement::class.simpleName}")
+            }
+        }
+    }
+
+    /**
+     * Append block children to a page or block
+     * 
+     * PATCH /v1/blocks/{block_id}/children
+     * Adds new blocks as children of an existing block (page or block).
+     * 
+     * @param blockId The ID of the parent block (page or block) to append children to
+     * @param children List of block objects to append
+     * @return Response containing the created blocks
+     * 
+     * @see https://developers.notion.com/reference/patch-block-children
+     */
+    suspend fun appendBlockChildren(blockId: String, children: List<JsonObject>): JsonObject {
+        return withContext(Dispatchers.IO) {
+            val formattedBlockId = formatIdForApi(blockId)
+            val childrenArray = JsonArray(children)
+            val requestBody = buildJsonObject {
+                put("children", childrenArray)
+            }
+            
+            val response = httpClient.patch("$baseUrl/blocks/$formattedBlockId/children") {
+                setBody(requestBody)
+            }
+            
+            if (!response.status.isSuccess()) {
+                val errorBody = response.bodyAsText()
+                val errorMessage = try {
+                    val errorResponse = json.decodeFromString(NotionErrorResponse.serializer(), errorBody)
+                    when (errorResponse.code) {
+                        "object_not_found" -> {
+                            "Block or page not found or not accessible.\n" +
+                            "Requested ID: $formattedBlockId\n" +
+                            "Ensure:\n" +
+                            "1. The block/page exists in your workspace\n" +
+                            "2. The block/page is accessible to your integration\n" +
+                            "3. The block/page ID is correct"
+                        }
+                        "unauthorized" -> "Unauthorized. Check your API key."
+                        "restricted_resource" -> "Access to resource is restricted. Ensure the integration has necessary permissions."
+                        "validation_error" -> "Validation error: ${errorResponse.message}"
+                        "rate_limited" -> "Rate limit exceeded. Please try again later."
+                        else -> "${errorResponse.message} (code: ${errorResponse.code})"
+                    }
+                } catch (e: Exception) {
+                    "HTTP ${response.status.value}: $errorBody"
+                }
+                throw NotionException(errorMessage)
+            }
+            
+            val responseText = response.bodyAsText()
+            val parsedElement = json.parseToJsonElement(responseText)
+            when (parsedElement) {
+                is JsonObject -> parsedElement
+                else -> throw NotionException("Unexpected response format: expected JsonObject, got ${parsedElement::class.simpleName}")
+            }
         }
     }
 

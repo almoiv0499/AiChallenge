@@ -29,12 +29,27 @@ import org.example.mcp.JsonRpcResponse
 import org.example.mcp.McpTool
 import org.example.mcp.ToolsListResult
 import org.example.notion.NotionClient
+import org.example.notion.BlockUpdateRequest
+import org.example.notion.PageUpdateRequest
+import org.example.notion.NotionRichText
+import org.example.notion.NotionText
+import org.example.notion.NotionSelect
+import org.example.notion.NotionDate
+import org.example.notion.SelectPropertyUpdate
+import org.example.notion.DatePropertyUpdate
+import org.example.notion.TitlePropertyUpdate
+import org.example.notion.ParagraphBlockUpdate
+import org.example.notion.ToDoBlockUpdate
+import org.example.notion.HeadingBlockUpdate
+import org.example.notion.ListItemBlockUpdate
+import org.example.notion.ToggleBlockUpdate
 import org.example.reminder.ReminderService
 import org.example.reminder.SummaryGenerator
 
 class NotionMcpServer(
     private val notionClient: NotionClient,
-    private val reminderService: ReminderService? = null
+    private val reminderService: ReminderService? = null,
+    private val defaultPageId: String? = null
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -110,6 +125,11 @@ class NotionMcpServer(
         val tools = mutableListOf(
             createGetPageTool()
         )
+        if (defaultPageId != null) {
+            tools.add(createUpdatePageTool())
+            tools.add(createUpdateBlockTool())
+            tools.add(createAppendBlockTool())
+        }
         if (reminderService != null) {
             tools.add(createGetActiveTasksTool())
         }
@@ -165,6 +185,9 @@ class NotionMcpServer(
         }
         val result = when (toolName) {
             "get_notion_page" -> executeGetPage(arguments)
+            "update_notion_page" -> executeUpdatePage(arguments)
+            "update_notion_block" -> executeUpdateBlock(arguments)
+            "append_notion_block" -> executeAppendBlock(arguments)
             "get_active_tasks" -> executeGetActiveTasks(arguments)
             else -> buildJsonObject {
                 put("isError", true)
@@ -182,7 +205,7 @@ class NotionMcpServer(
     private fun createGetPageTool(): McpTool {
         return McpTool(
             name = "get_notion_page",
-            description = "Получить информацию о странице из Notion по её ID или URL. Используй этот инструмент ВСЕГДА, когда пользователь просит получить данные о странице Notion. Инструмент автоматически извлекает ID из URL. Возвращает полную информацию о странице включая название, свойства, URL, даты создания и изменения.",
+            description = "Получить страницу Notion",
             inputSchema = buildJsonObject {
                 put("type", "object")
                 put("properties", buildJsonObject {
@@ -283,7 +306,7 @@ class NotionMcpServer(
     private fun createGetActiveTasksTool(): McpTool {
         return McpTool(
             name = "get_active_tasks",
-            description = "Получить список активных задач из Notion базы данных. Возвращает все задачи, которые не имеют статус 'Done'. Включает название задачи, статус и дату выполнения (если установлена).",
+            description = "Получить активные задачи",
             inputSchema = buildJsonObject {
                 put("type", "object")
                 put("properties", buildJsonObject {})
@@ -325,6 +348,384 @@ class NotionMcpServer(
                     add(buildJsonObject {
                         put("type", "text")
                         put("text", "Ошибка при получении активных задач: ${e.message ?: "Неизвестная ошибка"}")
+                    })
+                })
+            }
+        }
+    }
+
+    private fun createUpdatePageTool(): McpTool {
+        return McpTool(
+            name = "update_notion_page",
+            description = "Обновить страницу Notion",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                put("properties", buildJsonObject {
+                    put("page_id", buildJsonObject {
+                        put("type", "string")
+                        put("description", "ID страницы Notion (опционально). Если не указан, используется страница из конфигурации NOTION_PAGE_ID.")
+                    })
+                    put("properties", buildJsonObject {
+                        put("type", "object")
+                        put("description", "Свойства для обновления. Ключ - имя свойства, значение - объект обновления (select, date, title и т.д.)")
+                    })
+                    put("archived", buildJsonObject {
+                        put("type", "boolean")
+                        put("description", "Архивировать (true) или восстановить (false) страницу")
+                    })
+                })
+                put("required", buildJsonArray {})
+            }
+        )
+    }
+
+    private suspend fun executeUpdatePage(arguments: JsonObject): JsonElement {
+        val pageId = arguments["page_id"]?.jsonPrimitive?.content ?: defaultPageId
+        if (pageId == null) {
+            return buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "page_id is required. Either provide it in arguments or set NOTION_PAGE_ID environment variable.")
+                    })
+                })
+            }
+        }
+
+        val propertiesJson = arguments["properties"] as? JsonObject
+        val archived = arguments["archived"]?.jsonPrimitive?.content?.toBoolean()
+
+        val properties = if (propertiesJson != null) {
+            try {
+                propertiesJson.mapValues { (_, value) ->
+                    value as? JsonObject ?: buildJsonObject {}
+                }
+            } catch (e: Exception) {
+                return buildJsonObject {
+                    put("isError", true)
+                    put("content", buildJsonArray {
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", "Invalid properties format: ${e.message}")
+                        })
+                    })
+                }
+            }
+        } else {
+            null
+        }
+
+        val updateRequest = PageUpdateRequest(
+            properties = properties,
+            archived = archived
+        )
+
+        return try {
+            val updatedPage = notionClient.updatePage(pageId, updateRequest)
+            buildJsonObject {
+                put("isError", false)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "Page updated successfully: ${json.encodeToString(org.example.notion.NotionPage.serializer(), updatedPage)}")
+                    })
+                })
+            }
+        } catch (e: org.example.notion.NotionException) {
+            buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", e.message ?: "Ошибка при обновлении страницы")
+                    })
+                })
+            }
+        } catch (e: Exception) {
+            buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "Ошибка при обновлении страницы: ${e.message ?: "Неизвестная ошибка"}")
+                    })
+                })
+            }
+        }
+    }
+
+    private fun createUpdateBlockTool(): McpTool {
+        return McpTool(
+            name = "update_notion_block",
+            description = "Обновить блок Notion",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                put("properties", buildJsonObject {
+                    put("block_id", buildJsonObject {
+                        put("type", "string")
+                        put("description", "ID блока для обновления (обязательно)")
+                    })
+                    put("block_type", buildJsonObject {
+                        put("type", "string")
+                        put("enum", buildJsonArray {
+                            add("paragraph")
+                            add("heading_1")
+                            add("heading_2")
+                            add("heading_3")
+                            add("bulleted_list_item")
+                            add("numbered_list_item")
+                            add("to_do")
+                            add("toggle")
+                        })
+                        put("description", "Тип блока для обновления")
+                    })
+                    put("text", buildJsonObject {
+                        put("type", "string")
+                        put("description", "Текст для блока")
+                    })
+                    put("checked", buildJsonObject {
+                        put("type", "boolean")
+                        put("description", "Для to_do блоков: отмечен ли пункт")
+                    })
+                    put("archived", buildJsonObject {
+                        put("type", "boolean")
+                        put("description", "Архивировать (true) или восстановить (false) блок")
+                    })
+                })
+                put("required", buildJsonArray {
+                    add("block_id")
+                    add("block_type")
+                })
+            }
+        )
+    }
+
+    private suspend fun executeUpdateBlock(arguments: JsonObject): JsonElement {
+        val blockId = arguments["block_id"]?.jsonPrimitive?.content
+            ?: return buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "block_id is required")
+                    })
+                })
+            }
+
+        val blockType = arguments["block_type"]?.jsonPrimitive?.content
+            ?: return buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "block_type is required")
+                    })
+                })
+            }
+
+        val text = arguments["text"]?.jsonPrimitive?.content
+        val checked = arguments["checked"]?.jsonPrimitive?.content?.toBoolean()
+        val archived = arguments["archived"]?.jsonPrimitive?.content?.toBoolean()
+
+        val richText = if (text != null) {
+            listOf(
+                NotionRichText(
+                    type = "text",
+                    text = NotionText(content = text),
+                    plainText = text
+                )
+            )
+        } else {
+            emptyList()
+        }
+
+        val updateRequest = when (blockType) {
+            "paragraph" -> BlockUpdateRequest(
+                paragraph = if (richText.isNotEmpty()) ParagraphBlockUpdate(richText) else null,
+                archived = archived
+            )
+            "heading_1" -> BlockUpdateRequest(
+                heading1 = if (richText.isNotEmpty()) HeadingBlockUpdate(richText) else null,
+                archived = archived
+            )
+            "heading_2" -> BlockUpdateRequest(
+                heading2 = if (richText.isNotEmpty()) HeadingBlockUpdate(richText) else null,
+                archived = archived
+            )
+            "heading_3" -> BlockUpdateRequest(
+                heading3 = if (richText.isNotEmpty()) HeadingBlockUpdate(richText) else null,
+                archived = archived
+            )
+            "to_do" -> BlockUpdateRequest(
+                toDo = if (richText.isNotEmpty() || checked != null) {
+                    ToDoBlockUpdate(
+                        richText = richText,
+                        checked = checked
+                    )
+                } else null,
+                archived = archived
+            )
+            "bulleted_list_item" -> BlockUpdateRequest(
+                bulletedListItem = if (richText.isNotEmpty()) ListItemBlockUpdate(richText) else null,
+                archived = archived
+            )
+            "numbered_list_item" -> BlockUpdateRequest(
+                numberedListItem = if (richText.isNotEmpty()) ListItemBlockUpdate(richText) else null,
+                archived = archived
+            )
+            "toggle" -> BlockUpdateRequest(
+                toggle = if (richText.isNotEmpty()) ToggleBlockUpdate(richText) else null,
+                archived = archived
+            )
+            else -> {
+                return buildJsonObject {
+                    put("isError", true)
+                    put("content", buildJsonArray {
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", "Unsupported block type: $blockType")
+                        })
+                    })
+                }
+            }
+        }
+
+        return try {
+            val updatedBlock = notionClient.updateBlock(blockId, updateRequest)
+            buildJsonObject {
+                put("isError", false)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "Block updated successfully: ${updatedBlock.toString()}")
+                    })
+                })
+            }
+        } catch (e: org.example.notion.NotionException) {
+            buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", e.message ?: "Ошибка при обновлении блока")
+                    })
+                })
+            }
+        } catch (e: Exception) {
+            buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "Ошибка при обновлении блока: ${e.message ?: "Неизвестная ошибка"}")
+                    })
+                })
+            }
+        }
+    }
+
+    private fun createAppendBlockTool(): McpTool {
+        return McpTool(
+            name = "append_notion_block",
+            description = "Добавить блок в Notion",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                put("properties", buildJsonObject {
+                    put("page_id", buildJsonObject {
+                        put("type", "string")
+                        put("description", "ID страницы Notion (опционально). Если не указан, используется страница из конфигурации NOTION_PAGE_ID.")
+                    })
+                    put("text", buildJsonObject {
+                        put("type", "string")
+                        put("description", "Текст для добавления в виде параграфа")
+                    })
+                })
+                put("required", buildJsonArray {
+                    add("text")
+                })
+            }
+        )
+    }
+
+    private suspend fun executeAppendBlock(arguments: JsonObject): JsonElement {
+        val pageId = arguments["page_id"]?.jsonPrimitive?.content ?: defaultPageId
+        if (pageId == null) {
+            return buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "page_id is required. Either provide it in arguments or set NOTION_PAGE_ID environment variable.")
+                    })
+                })
+            }
+        }
+
+        val text = arguments["text"]?.jsonPrimitive?.content
+            ?: return buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "text is required")
+                    })
+                })
+            }
+
+        // Split text by lines and create a paragraph block for each line
+        val lines = text.split("\n").filter { it.isNotBlank() }
+        val children = lines.map { line ->
+            buildJsonObject {
+                put("object", "block")
+                put("type", "paragraph")
+                put("paragraph", buildJsonObject {
+                    put("rich_text", buildJsonArray {
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", buildJsonObject {
+                                put("content", line)
+                            })
+                        })
+                    })
+                })
+            }
+        }
+
+        return try {
+            val result = notionClient.appendBlockChildren(pageId, children)
+            // Return a valid JSON string that can be parsed
+            val successJson = buildJsonObject {
+                put("success", true)
+                put("message", "Successfully appended ${children.size} block(s) to page")
+                put("blocksCount", children.size)
+            }
+            buildJsonObject {
+                put("isError", false)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", json.encodeToString(JsonElement.serializer(), successJson))
+                    })
+                })
+            }
+        } catch (e: org.example.notion.NotionException) {
+            buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", e.message ?: "Ошибка при добавлении блока")
+                    })
+                })
+            }
+        } catch (e: Exception) {
+            buildJsonObject {
+                put("isError", true)
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "Ошибка при добавлении блока: ${e.message ?: "Неизвестная ошибка"}")
                     })
                 })
             }

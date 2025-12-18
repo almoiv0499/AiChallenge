@@ -248,3 +248,202 @@ data class NotionParent(
  *      The start field is required when date is present.
  *      Use property.date?.end for date ranges.
  */
+
+/**
+ * Page Update Request
+ * 
+ * Request body for PATCH /v1/pages/{page_id}
+ * All fields are optional. Only provided fields will be updated.
+ * 
+ * @see https://developers.notion.com/reference/patch-page
+ */
+@Serializable
+data class PageUpdateRequest(
+    /**
+     * Properties to update. Each key is the property name or ID.
+     * Values are property-specific update objects.
+     */
+    val properties: Map<String, JsonObject>? = null,
+    /**
+     * Icon to set for the page. Set to null to remove icon.
+     */
+    val icon: NotionIcon? = null,
+    /**
+     * Cover to set for the page. Set to null to remove cover.
+     */
+    val cover: NotionFile? = null,
+    /**
+     * Archive or restore the page. true = archived, false = restored.
+     */
+    val archived: Boolean? = null
+)
+
+/**
+ * Property Update Objects
+ * 
+ * These are used within PageUpdateRequest.properties map.
+ * Each property type has its own update structure.
+ */
+
+/**
+ * Title Property Update
+ * 
+ * Used to update a title property.
+ * Example: properties["Name"] = JsonObject { put("title", titleUpdateJson) }
+ */
+@Serializable
+data class TitlePropertyUpdate(
+    val title: List<NotionRichText>
+)
+
+/**
+ * Select Property Update
+ * 
+ * Used to update a select property.
+ * Set name to null to clear the selection.
+ */
+@Serializable
+data class SelectPropertyUpdate(
+    val select: NotionSelect?
+)
+
+/**
+ * Date Property Update
+ * 
+ * Used to update a date property.
+ * Set date to null to clear the date.
+ */
+@Serializable
+data class DatePropertyUpdate(
+    val date: NotionDate?
+)
+
+/**
+ * Rich Text Property Update
+ * 
+ * Used to update a rich text property.
+ */
+@Serializable
+data class RichTextPropertyUpdate(
+    @SerialName("rich_text") val richText: List<NotionRichText>
+)
+
+/**
+ * Number Property Update
+ * 
+ * Used to update a number property.
+ * Set number to null to clear the number.
+ */
+@Serializable
+data class NumberPropertyUpdate(
+    val number: Double?
+)
+
+/**
+ * Checkbox Property Update
+ * 
+ * Used to update a checkbox property.
+ */
+@Serializable
+data class CheckboxPropertyUpdate(
+    val checkbox: Boolean
+)
+
+/**
+ * Block Update Request
+ * 
+ * Request body for PATCH /v1/blocks/{block_id}
+ * Only one block type field should be provided.
+ * 
+ * @see https://developers.notion.com/reference/update-a-block
+ */
+@Serializable
+data class BlockUpdateRequest(
+    /**
+     * Update a paragraph block
+     */
+    val paragraph: ParagraphBlockUpdate? = null,
+    /**
+     * Update a heading_1 block
+     */
+    @SerialName("heading_1") val heading1: HeadingBlockUpdate? = null,
+    /**
+     * Update a heading_2 block
+     */
+    @SerialName("heading_2") val heading2: HeadingBlockUpdate? = null,
+    /**
+     * Update a heading_3 block
+     */
+    @SerialName("heading_3") val heading3: HeadingBlockUpdate? = null,
+    /**
+     * Update a bulleted_list_item block
+     */
+    @SerialName("bulleted_list_item") val bulletedListItem: ListItemBlockUpdate? = null,
+    /**
+     * Update a numbered_list_item block
+     */
+    @SerialName("numbered_list_item") val numberedListItem: ListItemBlockUpdate? = null,
+    /**
+     * Update a to_do block
+     */
+    @SerialName("to_do") val toDo: ToDoBlockUpdate? = null,
+    /**
+     * Update a toggle block
+     */
+    val toggle: ToggleBlockUpdate? = null,
+    /**
+     * Archive or restore the block. true = archived, false = restored.
+     */
+    val archived: Boolean? = null
+)
+
+/**
+ * Paragraph Block Update
+ * 
+ * Content for updating a paragraph block.
+ */
+@Serializable
+data class ParagraphBlockUpdate(
+    @SerialName("rich_text") val richText: List<NotionRichText>
+)
+
+/**
+ * Heading Block Update
+ * 
+ * Content for updating heading_1, heading_2, or heading_3 blocks.
+ */
+@Serializable
+data class HeadingBlockUpdate(
+    @SerialName("rich_text") val richText: List<NotionRichText>
+)
+
+/**
+ * List Item Block Update
+ * 
+ * Content for updating bulleted_list_item or numbered_list_item blocks.
+ */
+@Serializable
+data class ListItemBlockUpdate(
+    @SerialName("rich_text") val richText: List<NotionRichText>
+)
+
+/**
+ * To-Do Block Update
+ * 
+ * Content for updating a to_do block.
+ */
+@Serializable
+data class ToDoBlockUpdate(
+    @SerialName("rich_text") val richText: List<NotionRichText>,
+    val checked: Boolean? = null
+)
+
+/**
+ * Toggle Block Update
+ * 
+ * Content for updating a toggle block.
+ */
+@Serializable
+data class ToggleBlockUpdate(
+    @SerialName("rich_text") val richText: List<NotionRichText>
+)

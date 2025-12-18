@@ -8,6 +8,9 @@ object AppConfig {
     const val NOTION_API_KEY_ENV = "NOTION_API_KEY"
     const val WEATHER_API_KEY_ENV = "WEATHER_API_KEY"
     const val NOTION_DATABASE_ID_ENV = "NOTION_DATABASE_ID"
+    const val NOTION_PAGE_ID_ENV = "NOTION_PAGE_ID"
+    const val WEATHER_LATITUDE_ENV = "WEATHER_LATITUDE"
+    const val WEATHER_LONGITUDE_ENV = "WEATHER_LONGITUDE"
     const val LOCAL_PROPERTIES_FILE = "local.properties"
     fun loadApiKey(): String {
         return loadFromEnvironment()
@@ -27,6 +30,18 @@ object AppConfig {
     fun loadNotionDatabaseId(): String? {
         return loadDatabaseIdFromEnvironment()
             ?: loadDatabaseIdFromPropertiesFile()
+    }
+    fun loadNotionPageId(): String? {
+        return loadPageIdFromEnvironment()
+            ?: loadPageIdFromPropertiesFile()
+    }
+    fun loadWeatherLatitude(): Double? {
+        val value = loadLatitudeFromEnvironment() ?: loadLatitudeFromPropertiesFile()
+        return value?.toDoubleOrNull()
+    }
+    fun loadWeatherLongitude(): Double? {
+        val value = loadLongitudeFromEnvironment() ?: loadLongitudeFromPropertiesFile()
+        return value?.toDoubleOrNull()
     }
     private fun loadFromEnvironment(): String? = System.getenv(API_KEY_ENV)
     private fun loadFromPropertiesFile(): String? {
@@ -59,6 +74,30 @@ object AppConfig {
         return Properties().apply {
             file.inputStream().use { load(it) }
         }.getProperty(NOTION_DATABASE_ID_ENV)
+    }
+    private fun loadPageIdFromEnvironment(): String? = System.getenv(NOTION_PAGE_ID_ENV)
+    private fun loadPageIdFromPropertiesFile(): String? {
+        val file = File(LOCAL_PROPERTIES_FILE)
+        if (!file.exists()) return null
+        return Properties().apply {
+            file.inputStream().use { load(it) }
+        }.getProperty(NOTION_PAGE_ID_ENV)
+    }
+    private fun loadLatitudeFromEnvironment(): String? = System.getenv(WEATHER_LATITUDE_ENV)
+    private fun loadLatitudeFromPropertiesFile(): String? {
+        val file = File(LOCAL_PROPERTIES_FILE)
+        if (!file.exists()) return null
+        return Properties().apply {
+            file.inputStream().use { load(it) }
+        }.getProperty(WEATHER_LATITUDE_ENV)
+    }
+    private fun loadLongitudeFromEnvironment(): String? = System.getenv(WEATHER_LONGITUDE_ENV)
+    private fun loadLongitudeFromPropertiesFile(): String? {
+        val file = File(LOCAL_PROPERTIES_FILE)
+        if (!file.exists()) return null
+        return Properties().apply {
+            file.inputStream().use { load(it) }
+        }.getProperty(WEATHER_LONGITUDE_ENV)
     }
     private fun throwApiKeyNotFoundError(): Nothing {
         error("""

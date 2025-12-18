@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.example.config.OpenRouterConfig
 import org.example.storage.TaskStorage
 
 /**
@@ -48,6 +49,12 @@ class TaskReminderScheduler(
         var iterationCount = 0
         
         while (true) {
+            // Check if task reminder is enabled
+            if (!OpenRouterConfig.ENABLE_TASK_REMINDER) {
+                delay(10_000)
+                continue
+            }
+            
             try {
                 // 1. Query Notion database
                 val currentTasks = reminderService.getAllTasks()

@@ -10,7 +10,7 @@ import org.example.weather.OpenMeteoException
 class WeatherTool : AgentTool {
     private val client = OpenMeteoClient()
     override val name = "get_weather"
-    override val description = "Получить текущую погоду и прогноз для указанных координат (широта и долгота)"
+    override val description = "Получить погоду"
     override fun getDefinition() = OpenRouterTool(
         name = name,
         description = description,
@@ -121,6 +121,7 @@ class WeatherTool : AgentTool {
         return directions[index]
     }
 }
+
 
 
 

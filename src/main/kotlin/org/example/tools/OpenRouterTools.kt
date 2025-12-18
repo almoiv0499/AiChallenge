@@ -18,7 +18,7 @@ interface AgentTool {
 
 class TimeTool : AgentTool {
     override val name = "get_current_time"
-    override val description = "Получить текущую дату и время"
+    override val description = "Получить текущее время"
     override fun getDefinition() = OpenRouterTool(
         name = name,
         description = description,
@@ -42,7 +42,7 @@ class TimeTool : AgentTool {
 
 class CalculatorTool : AgentTool {
     override val name = "calculator"
-    override val description = "Выполняет математические вычисления: сложение, вычитание, умножение, деление, возведение в степень, квадратный корень"
+    override val description = "Математические вычисления"
     override fun getDefinition() = OpenRouterTool(
         name = name,
         description = description,
@@ -93,7 +93,7 @@ class CalculatorTool : AgentTool {
 
 class SearchTool : AgentTool {
     override val name = "search"
-    override val description = "Поиск информации по запросу"
+    override val description = "Поиск информации"
     override fun getDefinition() = OpenRouterTool(
         name = name,
         description = description,
@@ -117,7 +117,7 @@ class SearchTool : AgentTool {
 
 class RandomNumberTool : AgentTool {
     override val name = "random_number"
-    override val description = "Генерирует случайное число в заданном диапазоне"
+    override val description = "Случайное число"
     override fun getDefinition() = OpenRouterTool(
         name = name,
         description = description,

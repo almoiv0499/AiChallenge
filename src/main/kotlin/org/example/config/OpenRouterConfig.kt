@@ -6,6 +6,7 @@ object OpenRouterConfig {
     const val MAX_AGENT_ITERATIONS = 3
     const val MAX_TOKENS = 5000.0
     var ENABLE_TOOLS = true
+    var ENABLE_TASK_REMINDER = false // По умолчанию отключено
     const val HISTORY_COMPRESSION_THRESHOLD = 3
     const val HISTORY_COMPRESSION_KEEP_LAST = 1
     val MODELS_WITHOUT_TOOLS = setOf(

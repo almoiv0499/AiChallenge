@@ -27,26 +27,22 @@ fun main() = runBlocking {
     val notionApiKey = AppConfig.loadNotionApiKey()
     val weatherApiKey = AppConfig.loadWeatherApiKey()
     val databaseId = AppConfig.loadNotionDatabaseId()
+    val pageId = AppConfig.loadNotionPageId()
+    val weatherLat = AppConfig.loadWeatherLatitude()
+    val weatherLon = AppConfig.loadWeatherLongitude()
     ConsoleUI.printInitializing()
-    startLocalServices(notionApiKey, weatherApiKey)
+    startLocalServices(notionApiKey, weatherApiKey, pageId)
     delay(1000)
-    
-    // Start background task reminder scheduler if database ID is configured
-    if (databaseId != null && databaseId.isNotBlank()) {
-        if (notionApiKey != "empty" && notionApiKey.isNotBlank()) {
-            startTaskReminderScheduler(notionApiKey, databaseId)
-        }
-    }
     
     val client = OpenRouterClient(apiKey)
     val toolRegistry = ToolRegistry.createDefault()
     connectToLocalMcpServers(toolRegistry)
     val agent = OpenRouterAgent(client, toolRegistry)
     ConsoleUI.printReady()
-    runChatLoop(agent, client)
+    runChatLoop(agent, client, notionApiKey, databaseId)
 }
 
-private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: String) {
+private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: String, pageId: String?) {
     ConsoleUI.printStartingServices()
     val notionClient = NotionClient(notionApiKey)
     val databaseId = AppConfig.loadNotionDatabaseId()
@@ -55,7 +51,7 @@ private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: Stri
     } else {
         null
     }
-    val notionMcpServer = NotionMcpServer(notionClient, reminderService)
+    val notionMcpServer = NotionMcpServer(notionClient, reminderService, pageId)
     embeddedServer(Netty, port = 8081) {
         notionMcpServer.configureMcpServer(this)
     }.start(wait = false)
@@ -97,7 +93,13 @@ private suspend fun connectToLocalMcpServers(toolRegistry: ToolRegistry) {
     }
 }
 
-private suspend fun runChatLoop(agent: OpenRouterAgent, client: OpenRouterClient) {
+private suspend fun runChatLoop(
+    agent: OpenRouterAgent, 
+    client: OpenRouterClient,
+    notionApiKey: String,
+    databaseId: String?
+) {
+    var taskScheduler: TaskReminderScheduler? = null
     while (true) {
         ConsoleUI.printUserPrompt()
         val input = readlnOrNull()?.trim() ?: continue
@@ -116,6 +118,9 @@ private suspend fun runChatLoop(agent: OpenRouterAgent, client: OpenRouterClient
             isToolsCommand(input) -> {
                 OpenRouterConfig.ENABLE_TOOLS = !OpenRouterConfig.ENABLE_TOOLS
                 ConsoleUI.printToolsStatus(OpenRouterConfig.ENABLE_TOOLS)
+            }
+            isTaskReminderCommand(input) -> {
+                taskScheduler = toggleTaskReminder(notionApiKey, databaseId, taskScheduler)
             }
             isClearTasksCommand(input) -> {
                 clearTasksDatabase()
@@ -152,16 +157,41 @@ private fun isToolsCommand(input: String): Boolean =
 private fun isClearTasksCommand(input: String): Boolean =
     input.lowercase() in listOf("/clear-tasks", "/cleartasks", "/clear-tasks-db")
 
+private fun isTaskReminderCommand(input: String): Boolean =
+    input.lowercase() in listOf("/tasks", "/task-reminder", "/reminder")
+
 /**
- * Starts the background task reminder scheduler.
- * The scheduler runs continuously in a separate coroutine scope and never terminates.
+ * Toggles the task reminder scheduler on/off.
+ * Returns the scheduler instance if started, null if stopped.
  */
-private fun startTaskReminderScheduler(notionApiKey: String, databaseId: String) {
-    val notionClient = NotionClient(notionApiKey)
-    val reminderService = ReminderService(notionClient, databaseId)
-    val scheduler = TaskReminderScheduler(reminderService)
-    scheduler.start()
-    println("✅ Task reminder scheduler started (runs every 10 seconds)")
+private fun toggleTaskReminder(
+    notionApiKey: String,
+    databaseId: String?,
+    currentScheduler: TaskReminderScheduler?
+): TaskReminderScheduler? {
+    if (currentScheduler != null || OpenRouterConfig.ENABLE_TASK_REMINDER) {
+        // Stop scheduler
+        OpenRouterConfig.ENABLE_TASK_REMINDER = false
+        println("❌ Task reminder scheduler выключен")
+        return null
+    } else {
+        // Start scheduler
+        if (databaseId == null || databaseId.isBlank()) {
+            println("❌ Не удалось запустить scheduler: NOTION_DATABASE_ID не настроен")
+            return null
+        }
+        if (notionApiKey == "empty" || notionApiKey.isBlank()) {
+            println("❌ Не удалось запустить scheduler: NOTION_API_KEY не настроен")
+            return null
+        }
+        OpenRouterConfig.ENABLE_TASK_REMINDER = true
+        val notionClient = NotionClient(notionApiKey)
+        val reminderService = ReminderService(notionClient, databaseId)
+        val scheduler = TaskReminderScheduler(reminderService)
+        scheduler.start()
+        println("✅ Task reminder scheduler включен (проверка каждые 10 секунд, вывод каждые 30 секунд)")
+        return scheduler
+    }
 }
 
 private fun clearTasksDatabase() {
@@ -173,3 +203,4 @@ private fun clearTasksDatabase() {
         ConsoleUI.printTasksDatabaseError("Ошибка при очистке базы данных задач")
     }
 }
+

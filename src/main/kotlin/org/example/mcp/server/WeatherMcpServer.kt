@@ -31,7 +31,9 @@ import org.example.mcp.ToolsListResult
 import org.example.weather.WeatherClient
 import org.example.weather.WeatherException
 
-class WeatherMcpServer(private val weatherClient: WeatherClient) {
+class WeatherMcpServer(
+    private val weatherClient: WeatherClient
+) {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -103,7 +105,7 @@ class WeatherMcpServer(private val weatherClient: WeatherClient) {
     }
 
     private fun handleToolsList(request: JsonRpcRequest): JsonRpcResponse {
-        val tools = listOf(
+        val tools = mutableListOf(
             createGetWeatherTool()
         )
         val toolsListResult = ToolsListResult(tools = tools)
@@ -163,7 +165,7 @@ class WeatherMcpServer(private val weatherClient: WeatherClient) {
     private fun createGetWeatherTool(): McpTool {
         return McpTool(
             name = "get_weather",
-            description = "Получить текущую погоду и прогноз для указанных координат (широта и долгота). Используй этот инструмент ВСЕГДА, когда пользователь спрашивает о погоде. Возвращает текущую погоду, почасовой прогноз на 48 часов и дневной прогноз на 8 дней.",
+            description = "Получить погоду по координатам",
             inputSchema = buildJsonObject {
                 put("type", "object")
                 put("properties", buildJsonObject {
@@ -270,4 +272,5 @@ class WeatherMcpServer(private val weatherClient: WeatherClient) {
             }
         }
     }
+
 }
