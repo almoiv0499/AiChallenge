@@ -68,6 +68,37 @@ gradlew.bat run --console=plain
 - "Который сейчас час?"
 - "Сгенерируй случайное число от 1 до 100"
 - "Найди информацию о Kotlin"
+- **"Найди на устройстве: Kotlin programming"** - запустит Android эмулятор и выполнит поиск
+- **"Find on device: Android development"** - поиск на эмуляторе (английский)
+
+## Настройка Android эмулятора (опционально)
+
+Для использования функции поиска на Android эмуляторе:
+
+1. Установите Android SDK
+2. Создайте AVD (Android Virtual Device) через Android Studio
+3. Добавьте в `local.properties`:
+   ```properties
+   ANDROID_SDK_PATH=C:\Users\YourName\AppData\Local\Android\Sdk
+   ```
+   Или через переменную окружения:
+   ```bash
+   set ANDROID_SDK_PATH=C:\Users\YourName\AppData\Local\Android\Sdk
+   ```
+
+Подробнее см. `docs/TESTING_GUIDE.md`
+
+## Новые возможности
+
+### MCP stdio Transport (Stage 2)
+- Поддержка stdio транспорта для MCP протокола
+- Неблокирующий I/O с использованием Kotlin Coroutines
+- Конфигурируемый выбор транспорта (HTTP/stdio)
+
+### Android Emulator Agent (Stage 3)
+- Автоматический запуск Android эмулятора
+- Поиск на устройстве через Chrome браузер
+- Определение намерений пользователя для автоматизации
 
 ## Структура проекта
 
@@ -80,9 +111,25 @@ src/main/kotlin/org/example/
 ├── ui/
 │   └── ConsoleUI.kt               # Терминальный интерфейс
 ├── agent/
-│   └── OpenRouterAgent.kt         # AI агент с tool calling
+│   ├── OpenRouterAgent.kt         # AI агент с tool calling
+│   └── android/                   # Android эмулятор агент
+│       ├── DeviceSearchExecutor.kt
+│       ├── AdbCommandExecutor.kt
+│       ├── AndroidEmulatorController.kt
+│       └── DeviceSearchService.kt
 ├── client/
 │   └── OpenRouterClient.kt        # HTTP клиент
+├── mcp/
+│   ├── McpClient.kt              # MCP клиент
+│   ├── McpModels.kt              # MCP модели
+│   ├── transport/                # Транспорты MCP
+│   │   ├── Transport.kt
+│   │   ├── HttpTransport.kt
+│   │   └── StdioTransport.kt
+│   └── server/                    # MCP серверы
+│       ├── NotionMcpServer.kt
+│       ├── WeatherMcpServer.kt
+│       └── StdioMcpServer.kt
 ├── models/
 │   ├── OpenRouterModels.kt        # Модели API
 │   └── Models.kt                  # Общие модели

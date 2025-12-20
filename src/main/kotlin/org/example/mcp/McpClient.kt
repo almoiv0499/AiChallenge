@@ -1,32 +1,13 @@
 package org.example.mcp
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
-import io.ktor.http.isSuccess
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
+import kotlinx.serialization.json.*
+import org.example.mcp.transport.Transport
+import org.example.mcp.transport.HttpTransport
+import org.example.mcp.transport.StdioTransport
+import org.example.mcp.transport.TransportType
 
 class McpClient(
-    private val baseUrl: String,
+    private val transport: Transport,
     private val clientName: String = "KotlinMcpClient",
     private val clientVersion: String = "1.0.0",
     private val protocolVersion: String = "2025-06-18"
@@ -38,11 +19,39 @@ class McpClient(
         prettyPrint = false
         isLenient = true
     }
-    private val httpClient: HttpClient = HttpClient(CIO) {
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30000
-            connectTimeoutMillis = 15000
-            socketTimeoutMillis = 30000
+    
+    companion object {
+        /**
+         * Creates an HTTP-based MCP client.
+         */
+        fun createHttp(
+            baseUrl: String,
+            clientName: String = "KotlinMcpClient",
+            clientVersion: String = "1.0.0",
+            protocolVersion: String = "2025-06-18"
+        ): McpClient {
+            return McpClient(
+                transport = HttpTransport(baseUrl),
+                clientName = clientName,
+                clientVersion = clientVersion,
+                protocolVersion = protocolVersion
+            )
+        }
+        
+        /**
+         * Creates a stdio-based MCP client.
+         */
+        fun createStdio(
+            clientName: String = "KotlinMcpClient",
+            clientVersion: String = "1.0.0",
+            protocolVersion: String = "2025-06-18"
+        ): McpClient {
+            return McpClient(
+                transport = StdioTransport(),
+                clientName = clientName,
+                clientVersion = clientVersion,
+                protocolVersion = protocolVersion
+            )
         }
     }
 
@@ -147,39 +156,50 @@ class McpClient(
     }
 
     fun close() {
-        httpClient.close()
+        transport.close()
     }
 
     private suspend fun sendRequest(request: JsonRpcRequest): JsonRpcResponse {
-        return withContext(Dispatchers.IO) {
-            val requestJson = json.encodeToString(JsonRpcRequest.serializer(), request)
-            val httpResponse = httpClient.post(baseUrl) {
-                contentType(ContentType.Application.Json)
-                header(HttpHeaders.Accept, "application/json, text/event-stream")
-                setBody(requestJson)
+        val requestElement = json.encodeToJsonElement(JsonRpcRequest.serializer(), request)
+        val responseElement = transport.sendRequest(requestElement)
+        
+        // For stdio transport, the response is already a JsonElement
+        // For HTTP transport, we need to decode it
+        val response = when (transport) {
+            is HttpTransport -> {
+                // HTTP transport returns JsonElement that needs to be decoded
+                json.decodeFromJsonElement(JsonRpcResponse.serializer(), responseElement)
             }
-            if (!httpResponse.status.isSuccess()) {
-                val errorBody = httpResponse.bodyAsText()
-                throw McpException("HTTP ${httpResponse.status.value}: $errorBody")
+            is StdioTransport -> {
+                // Stdio transport returns JsonElement directly
+                json.decodeFromJsonElement(JsonRpcResponse.serializer(), responseElement)
             }
-            val responseText = httpResponse.bodyAsText()
-            json.decodeFromString(JsonRpcResponse.serializer(), responseText)
+            else -> {
+                json.decodeFromJsonElement(JsonRpcResponse.serializer(), responseElement)
+            }
         }
+        return response
     }
 
     private suspend fun sendInitializedNotification() {
-        withContext(Dispatchers.IO) {
-            val notification = JsonRpcRequest(
-                id = null,
-                method = "notifications/initialized",
-                params = null
-            )
-            val notificationJson = json.encodeToString(JsonRpcRequest.serializer(), notification)
-            httpClient.post(baseUrl) {
-                contentType(ContentType.Application.Json)
-                header(HttpHeaders.Accept, "application/json, text/event-stream")
-                setBody(notificationJson)
+        val notification = JsonRpcRequest(
+            id = null,
+            method = "notifications/initialized",
+            params = null
+        )
+        // For stdio, notifications are sent but we don't wait for response
+        // For HTTP, we still send but ignore response
+        try {
+            val notificationElement = json.encodeToJsonElement(JsonRpcRequest.serializer(), notification)
+            if (transport is HttpTransport) {
+                // HTTP transport: send notification
+                transport.sendRequest(notificationElement)
+            } else {
+                // Stdio transport: send notification (fire and forget)
+                transport.sendRequest(notificationElement)
             }
+        } catch (e: Exception) {
+            // Ignore notification errors
         }
     }
 }

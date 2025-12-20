@@ -20,6 +20,7 @@ import org.example.ui.ConsoleUI
 import org.example.reminder.ReminderService
 import org.example.reminder.TaskReminderScheduler
 import org.example.storage.TaskStorage
+import org.example.agent.android.DeviceSearchService
 
 fun main() = runBlocking {
     ConsoleUI.printWelcome()
@@ -37,7 +38,14 @@ fun main() = runBlocking {
     val client = OpenRouterClient(apiKey)
     val toolRegistry = ToolRegistry.createDefault()
     connectToLocalMcpServers(toolRegistry)
-    val agent = OpenRouterAgent(client, toolRegistry)
+    
+    // Initialize device search service if Android SDK is configured
+    val deviceSearchService = DeviceSearchService.create()
+    if (deviceSearchService != null) {
+        println("✅ Device search service initialized (Android emulator support enabled)")
+    }
+    
+    val agent = OpenRouterAgent(client, toolRegistry, deviceSearchExecutor = deviceSearchService)
     ConsoleUI.printReady()
     runChatLoop(agent, client, notionApiKey, databaseId)
 }
@@ -72,7 +80,7 @@ private suspend fun connectToLocalMcpServers(toolRegistry: ToolRegistry) {
     for ((mcpUrl, serverName) in mcpServers) {
         try {
             ConsoleUI.printMcpConnecting(mcpUrl)
-            val mcpClient = McpClient(baseUrl = mcpUrl)
+            val mcpClient = McpClient.createHttp(baseUrl = mcpUrl)
             val initResult = mcpClient.initialize()
             ConsoleUI.printMcpConnected(initResult.serverInfo.name, initResult.serverInfo.version)
             val mcpTools = mcpClient.listTools()

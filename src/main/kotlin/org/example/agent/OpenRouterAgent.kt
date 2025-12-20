@@ -12,12 +12,14 @@ import org.example.models.*
 import org.example.storage.HistoryStorage
 import org.example.tools.ToolRegistry
 import org.example.ui.ConsoleUI
+import org.example.agent.android.DeviceSearchExecutor
 
 class OpenRouterAgent(
     private val client: OpenRouterClient,
     private val toolRegistry: ToolRegistry,
     private val model: String = OpenRouterConfig.DEFAULT_MODEL,
-    private val historyStorage: HistoryStorage = HistoryStorage()
+    private val historyStorage: HistoryStorage = HistoryStorage(),
+    private val deviceSearchExecutor: DeviceSearchExecutor? = null
 ) {
     private val temperature: Double = OpenRouterConfig.Temperature.DEFAULT
     private val conversationHistory = mutableListOf<JsonElement>()
@@ -32,8 +34,78 @@ class OpenRouterAgent(
 
     suspend fun processMessage(userMessage: String): ChatResponse {
         ConsoleUI.printUserMessage(userMessage)
+        
+        // Check if this is an on-device search request
+        if (deviceSearchExecutor != null && isOnDeviceSearchRequest(userMessage)) {
+            val searchQuery = extractSearchQuery(userMessage)
+            if (searchQuery != null) {
+                val result = deviceSearchExecutor.executeSearch(searchQuery)
+                return ChatResponse(
+                    response = result,
+                    toolCalls = emptyList(),
+                    temperature = temperature
+                )
+            }
+        }
+        
         addUserMessage(userMessage)
         return executeAgentLoop()
+    }
+    
+    /**
+     * Detects if the user message is requesting an on-device search.
+     */
+    private fun isOnDeviceSearchRequest(message: String): Boolean {
+        val lowerMessage = message.lowercase()
+        val searchKeywords = listOf(
+            "найди на устройстве",
+            "найди на девайсе",
+            "поиск на устройстве",
+            "поиск на девайсе",
+            "find on device",
+            "search on device",
+            "найди в эмуляторе",
+            "поиск в эмуляторе",
+            "search in emulator",
+            "find in emulator"
+        )
+        return searchKeywords.any { lowerMessage.contains(it) }
+    }
+    
+    /**
+     * Extracts the search query from the user message.
+     */
+    private fun extractSearchQuery(message: String): String? {
+        // Try to extract query after search keywords
+        val patterns = listOf(
+            Regex("""(?:найди|поиск|find|search)\s+(?:на\s+)?(?:устройстве|девайсе|эмуляторе|device|emulator)[\s:]+(.+)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:найди|поиск|find|search)\s+(.+?)\s+(?:на\s+)?(?:устройстве|девайсе|эмуляторе|device|emulator)""", RegexOption.IGNORE_CASE)
+        )
+        
+        for (pattern in patterns) {
+            val match = pattern.find(message)
+            if (match != null) {
+                return match.groupValues[1].trim()
+            }
+        }
+        
+        // If no pattern matches, try to extract after common phrases
+        val fallbackPatterns = listOf(
+            Regex(""":\s*(.+)"""),
+            Regex("""-?\s*(.+)""")
+        )
+        
+        for (pattern in fallbackPatterns) {
+            val match = pattern.find(message)
+            if (match != null) {
+                val candidate = match.groupValues[1].trim()
+                if (candidate.length > 3) {
+                    return candidate
+                }
+            }
+        }
+        
+        return null
     }
 
     fun clearHistory() {

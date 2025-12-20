@@ -36,7 +36,7 @@ class WeatherScheduler(
     
     private suspend fun initializeMcpClient() {
         try {
-            mcpClient = McpClient(baseUrl = notionMcpUrl)
+            mcpClient = McpClient.createHttp(baseUrl = notionMcpUrl)
             mcpClient?.initialize()
         } catch (e: Exception) {
             println("[WARNING] Failed to initialize Notion MCP client: ${e.message}")
