@@ -55,3 +55,19 @@ tasks.named<JavaExec>("run") {
 tasks.test {
     useJUnitPlatform()
 }
+
+// Задача для запуска индексации документов
+tasks.register<JavaExec>("runIndexDocs") {
+    group = "application"
+    description = "Индексирует документ docs/docs.md с эмбеддингами"
+    mainClass.set("org.example.embedding.IndexDocumentMainKt")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
+// Задача для тестирования поиска
+tasks.register<JavaExec>("runSearchTest") {
+    group = "application"
+    description = "Тестирует поиск по индексу документов"
+    mainClass.set("org.example.embedding.SearchTestMainKt")
+    classpath = sourceSets["main"].runtimeClasspath
+}

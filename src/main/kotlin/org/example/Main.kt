@@ -21,6 +21,9 @@ import org.example.reminder.ReminderService
 import org.example.reminder.TaskReminderScheduler
 import org.example.storage.TaskStorage
 import org.example.agent.android.DeviceSearchService
+import org.example.embedding.EmbeddingClient
+import org.example.embedding.DocumentIndexStorage
+import org.example.embedding.RagService
 
 fun main() = runBlocking {
     ConsoleUI.printWelcome()
@@ -45,9 +48,38 @@ fun main() = runBlocking {
         println("✅ Device search service initialized (Android emulator support enabled)")
     }
     
-    val agent = OpenRouterAgent(client, toolRegistry, deviceSearchExecutor = deviceSearchService)
+    // Initialize RAG service for local document search
+    val embeddingClientForRag = try {
+        EmbeddingClient(apiKey)
+    } catch (e: Exception) {
+        println("⚠️ Failed to initialize embedding client for RAG: ${e.message}")
+        null
+    }
+    
+    val ragService = embeddingClientForRag?.let { embClient ->
+        try {
+            val documentStorage = DocumentIndexStorage()
+            val rag = RagService(embClient, documentStorage)
+            if (rag.hasDocuments()) {
+                println("✅ RAG service initialized (local document search enabled)")
+            } else {
+                println("⚠️ RAG service initialized but no documents in index. Run 'gradlew runIndexDocs' to index documents.")
+            }
+            rag
+        } catch (e: Exception) {
+            println("⚠️ Failed to initialize RAG service: ${e.message}")
+            null
+        }
+    }
+    
+    val agent = OpenRouterAgent(
+        client, 
+        toolRegistry, 
+        deviceSearchExecutor = deviceSearchService,
+        ragService = ragService
+    )
     ConsoleUI.printReady()
-    runChatLoop(agent, client, notionApiKey, databaseId)
+    runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag)
 }
 
 private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: String, pageId: String?) {
@@ -105,7 +137,8 @@ private suspend fun runChatLoop(
     agent: OpenRouterAgent, 
     client: OpenRouterClient,
     notionApiKey: String,
-    databaseId: String?
+    databaseId: String?,
+    embeddingClientForRag: EmbeddingClient?
 ) {
     var taskScheduler: TaskReminderScheduler? = null
     while (true) {
@@ -116,6 +149,7 @@ private suspend fun runChatLoop(
             isExitCommand(input) -> {
                 ConsoleUI.printGoodbye()
                 client.close()
+                embeddingClientForRag?.close()
                 return
             }
             isClearCommand(input) -> {

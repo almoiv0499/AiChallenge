@@ -8,6 +8,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.example.client.OpenRouterClient
 import org.example.config.OpenRouterConfig
+import org.example.embedding.RagService
 import org.example.models.*
 import org.example.storage.HistoryStorage
 import org.example.tools.ToolRegistry
@@ -19,7 +20,8 @@ class OpenRouterAgent(
     private val toolRegistry: ToolRegistry,
     private val model: String = OpenRouterConfig.DEFAULT_MODEL,
     private val historyStorage: HistoryStorage = HistoryStorage(),
-    private val deviceSearchExecutor: DeviceSearchExecutor? = null
+    private val deviceSearchExecutor: DeviceSearchExecutor? = null,
+    private val ragService: RagService? = null
 ) {
     private val temperature: Double = OpenRouterConfig.Temperature.DEFAULT
     private val conversationHistory = mutableListOf<JsonElement>()
@@ -46,6 +48,14 @@ class OpenRouterAgent(
                     temperature = temperature
                 )
             }
+        }
+        
+        // RAG: поиск релевантного контекста в локальной БД
+        val ragContext = ragService?.searchRelevantContext(userMessage)
+        if (ragContext != null) {
+            println("📚 Найден релевантный контекст в локальной базе знаний")
+            // Добавляем контекст как системное сообщение перед пользовательским запросом
+            addRagContext(ragContext)
         }
         
         addUserMessage(userMessage)
@@ -288,6 +298,14 @@ class OpenRouterAgent(
         }
     }
 
+    private fun addRagContext(context: String) {
+        val msg = OpenRouterInputMessage(
+            role = "system",
+            content = listOf(OpenRouterInputContentItem(type = "input_text", text = context))
+        )
+        conversationHistory.add(json.encodeToJsonElement(OpenRouterInputMessage.serializer(), msg))
+    }
+    
     private fun addUserMessage(message: String) {
         val msg = OpenRouterInputMessage(
             role = "user",
