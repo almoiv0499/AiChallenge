@@ -45,3 +45,14 @@ data class ToolCallResult(
     val arguments: Map<String, String>,
     val result: String
 )
+
+/**
+ * Результат сравнения ответов с RAG и без RAG
+ */
+data class RagComparisonResult(
+    val question: String,
+    val answerWithRag: ChatResponse,
+    val answerWithoutRag: ChatResponse,
+    val ragContext: String?,
+    val analysis: String? = null
+)

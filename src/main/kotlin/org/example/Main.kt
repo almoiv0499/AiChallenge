@@ -161,6 +161,14 @@ private suspend fun runChatLoop(
                 OpenRouterConfig.ENABLE_TOOLS = !OpenRouterConfig.ENABLE_TOOLS
                 ConsoleUI.printToolsStatus(OpenRouterConfig.ENABLE_TOOLS)
             }
+            isRagCommand(input) -> {
+                agent.setRagEnabled(!agent.isRagEnabled())
+                ConsoleUI.printRagModeStatus(agent.isRagEnabled())
+            }
+            isRagCompareCommand(input) -> {
+                agent.setComparisonMode(!agent.isComparisonMode())
+                ConsoleUI.printComparisonModeStatus(agent.isComparisonMode())
+            }
             isTaskReminderCommand(input) -> {
                 taskScheduler = toggleTaskReminder(notionApiKey, databaseId, taskScheduler)
             }
@@ -201,6 +209,12 @@ private fun isClearTasksCommand(input: String): Boolean =
 
 private fun isTaskReminderCommand(input: String): Boolean =
     input.lowercase() in listOf("/tasks", "/task-reminder", "/reminder")
+
+private fun isRagCommand(input: String): Boolean =
+    input.lowercase() in listOf("/rag", "/rag-mode", "/rag-toggle")
+
+private fun isRagCompareCommand(input: String): Boolean =
+    input.lowercase() in listOf("/rag-compare", "/ragcompare", "/compare-rag", "/compare")
 
 /**
  * Toggles the task reminder scheduler on/off.

@@ -27,6 +27,8 @@ class OpenRouterAgent(
     private val conversationHistory = mutableListOf<JsonElement>()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var userMessageCount: Int = 0
+    private var ragEnabled: Boolean = true
+    private var comparisonMode: Boolean = false
 
     init {
         addSystemPrompt()
@@ -50,17 +52,112 @@ class OpenRouterAgent(
             }
         }
         
+        // Если включен режим сравнения, выполняем сравнение
+        if (comparisonMode) {
+            if (ragService == null) {
+                println("⚠️ Режим сравнения требует RAG сервис, но он не инициализирован")
+                println("   Продолжаем в обычном режиме без сравнения\n")
+            } else {
+                return compareWithAndWithoutRag(userMessage)
+            }
+        }
+        
         // RAG: поиск релевантного контекста в локальной БД
-        val ragContext = ragService?.searchRelevantContext(userMessage)
-        if (ragContext != null) {
-            println("📚 Найден релевантный контекст в локальной базе знаний")
-            // Добавляем контекст как системное сообщение перед пользовательским запросом
-            addRagContext(ragContext)
+        if (ragEnabled) {
+            val ragContext = ragService?.searchRelevantContext(userMessage)
+            if (ragContext != null) {
+                println("📚 Найден релевантный контекст в локальной базе знаний")
+                // Добавляем контекст как системное сообщение перед пользовательским запросом
+                addRagContext(ragContext)
+            }
         }
         
         addUserMessage(userMessage)
         return executeAgentLoop()
     }
+    
+    /**
+     * Сравнивает ответы с RAG и без RAG
+     */
+    suspend fun compareWithAndWithoutRag(userMessage: String): ChatResponse {
+        val ragContext = ragService?.searchRelevantContext(userMessage)
+        
+        // Сохраняем текущее состояние истории
+        val savedHistory = conversationHistory.toList()
+        val savedUserMessageCount = userMessageCount
+        
+        // 1. Ответ БЕЗ RAG
+        ConsoleUI.printComparisonStep("БЕЗ RAG")
+        conversationHistory.clear()
+        // Фильтруем историю, удаляя все RAG контексты
+        val historyWithoutRag = filterOutRagContexts(savedHistory)
+        conversationHistory.addAll(historyWithoutRag)
+        userMessageCount = savedUserMessageCount
+        addUserMessage(userMessage)
+        val answerWithoutRag = executeAgentLoop()
+        
+        // 2. Ответ С RAG
+        ConsoleUI.printComparisonStep("С RAG")
+        conversationHistory.clear()
+        conversationHistory.addAll(savedHistory)
+        userMessageCount = savedUserMessageCount
+        if (ragContext != null) {
+            println("📚 Найден релевантный контекст в локальной базе знаний")
+            addRagContext(ragContext)
+        }
+        addUserMessage(userMessage)
+        val answerWithRag = executeAgentLoop()
+        
+        // Восстанавливаем историю
+        conversationHistory.clear()
+        conversationHistory.addAll(savedHistory)
+        userMessageCount = savedUserMessageCount
+        
+        // Выводим сравнение
+        ConsoleUI.printRagComparison(
+            question = userMessage,
+            answerWithRag = answerWithRag,
+            answerWithoutRag = answerWithoutRag,
+            ragContext = ragContext
+        )
+        
+        // Восстанавливаем историю и добавляем финальный ответ с RAG
+        conversationHistory.clear()
+        conversationHistory.addAll(savedHistory)
+        userMessageCount = savedUserMessageCount
+        if (ragContext != null) {
+            addRagContext(ragContext)
+        }
+        addUserMessage(userMessage)
+        addAssistantMessage(answerWithRag.response)
+        
+        // Возвращаем ответ с RAG как основной
+        return answerWithRag
+    }
+    
+    /**
+     * Включает/выключает RAG
+     */
+    fun setRagEnabled(enabled: Boolean) {
+        ragEnabled = enabled
+    }
+    
+    /**
+     * Включает/выключает режим сравнения
+     */
+    fun setComparisonMode(enabled: Boolean) {
+        comparisonMode = enabled
+    }
+    
+    /**
+     * Получает текущее состояние RAG
+     */
+    fun isRagEnabled(): Boolean = ragEnabled
+    
+    /**
+     * Получает текущий режим сравнения
+     */
+    fun isComparisonMode(): Boolean = comparisonMode
     
     /**
      * Detects if the user message is requesting an on-device search.
@@ -304,6 +401,62 @@ class OpenRouterAgent(
             content = listOf(OpenRouterInputContentItem(type = "input_text", text = context))
         )
         conversationHistory.add(json.encodeToJsonElement(OpenRouterInputMessage.serializer(), msg))
+    }
+    
+    /**
+     * Фильтрует историю, удаляя все RAG контексты (системные сообщения с RAG информацией)
+     */
+    private fun filterOutRagContexts(history: List<JsonElement>): List<JsonElement> {
+        val filtered = mutableListOf<JsonElement>()
+        for (element in history) {
+            var shouldAdd = true
+            try {
+                val jsonObject = when {
+                    element is JsonNull -> {
+                        // Добавляем JsonNull как есть
+                        shouldAdd = true
+                        null
+                    }
+                    element is JsonObject -> element
+                    else -> {
+                        // Добавляем другие типы как есть
+                        shouldAdd = true
+                        null
+                    }
+                }
+                
+                if (jsonObject != null) {
+                    val type = jsonObject["type"]?.jsonPrimitive?.content
+                    val role = jsonObject["role"]?.jsonPrimitive?.content
+                    
+                    // Пропускаем системные сообщения с RAG контекстом
+                    if (type == "message" && role == "system") {
+                        val message = json.decodeFromJsonElement(OpenRouterInputMessage.serializer(), element)
+                        val text = message.content.firstOrNull()?.text ?: ""
+                        
+                        // Проверяем, является ли это RAG контекстом
+                        // RAG контекст содержит фразу "Релевантная информация из локальной базы знаний"
+                        // или начинается с "[1] Источник:" (формат RAG контекста)
+                        val isRagContext = text.contains("Релевантная информация из локальной базы знаний", ignoreCase = true) ||
+                                text.contains("[1] Источник:", ignoreCase = true) ||
+                                (text.contains("Сходство:", ignoreCase = true) && text.contains("Источник:", ignoreCase = true))
+                        
+                        if (isRagContext) {
+                            // Пропускаем этот элемент (не добавляем в отфильтрованную историю)
+                            shouldAdd = false
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // В случае ошибки парсинга добавляем элемент как есть
+                shouldAdd = true
+            }
+            
+            if (shouldAdd) {
+                filtered.add(element)
+            }
+        }
+        return filtered
     }
     
     private fun addUserMessage(message: String) {

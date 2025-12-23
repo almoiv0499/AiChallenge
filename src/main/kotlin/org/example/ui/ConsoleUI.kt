@@ -19,6 +19,8 @@ object ConsoleUI {
         ║    /clear-tasks  - очистить базу данных задач                 ║
         ║    /help         - показать справку                          ║
         ║    /tools        - переключить отправку инструментов         ║
+        ║    /rag          - переключить RAG режим                       ║
+        ║    /rag-compare  - переключить режим сравнения RAG            ║
         ╚══════════════════════════════════════════════════════════════╝
         """.trimIndent()
     )
@@ -47,6 +49,8 @@ object ConsoleUI {
         • /tasks       - переключить напоминания о задачах (вкл/выкл)
         • /help        - эта справка
         • /tools       - переключить отправку инструментов (вкл/выкл)
+        • /rag         - переключить RAG режим (вкл/выкл)
+        • /rag-compare - переключить режим сравнения RAG (вкл/выкл)
         
         """.trimIndent()
     )
@@ -267,5 +271,126 @@ object ConsoleUI {
 
     fun printMcpToolsRegistered(count: Int) {
         println("✅ Зарегистрировано MCP инструментов: $count")
+    }
+
+    fun printComparisonStep(mode: String) {
+        println("\n${"=".repeat(SEPARATOR_WIDTH)}")
+        println("🔄 Режим: $mode")
+        println("${"=".repeat(SEPARATOR_WIDTH)}\n")
+    }
+
+    fun printRagComparison(
+        question: String,
+        answerWithRag: org.example.models.ChatResponse,
+        answerWithoutRag: org.example.models.ChatResponse,
+        ragContext: String?
+    ) {
+        println("\n${"=".repeat(SEPARATOR_WIDTH)}")
+        println("📊 СРАВНЕНИЕ ОТВЕТОВ: RAG vs БЕЗ RAG")
+        println("${"=".repeat(SEPARATOR_WIDTH)}\n")
+        
+        println("❓ Вопрос: $question\n")
+        
+        if (ragContext != null) {
+            println("📚 Найденный RAG контекст:")
+            printSeparator(SEPARATOR_CHAR)
+            println(ragContext.take(500) + if (ragContext.length > 500) "..." else "")
+            printSeparator(SEPARATOR_CHAR)
+            println()
+        } else {
+            println("⚠️ RAG контекст не найден\n")
+        }
+        
+        println("${"-".repeat(SEPARATOR_WIDTH)}")
+        println("❌ ОТВЕТ БЕЗ RAG:")
+        println("${"-".repeat(SEPARATOR_WIDTH)}")
+        println(answerWithoutRag.response)
+        println()
+        
+        println("${"-".repeat(SEPARATOR_WIDTH)}")
+        println("✅ ОТВЕТ С RAG:")
+        println("${"-".repeat(SEPARATOR_WIDTH)}")
+        println(answerWithRag.response)
+        println()
+        
+        // Анализ различий
+        val analysis = analyzeDifferences(answerWithoutRag.response, answerWithRag.response, ragContext != null)
+        println("${"=".repeat(SEPARATOR_WIDTH)}")
+        println("🔍 АНАЛИЗ:")
+        println("${"=".repeat(SEPARATOR_WIDTH)}")
+        println(analysis)
+        println("${"=".repeat(SEPARATOR_WIDTH)}\n")
+    }
+
+    private fun analyzeDifferences(answerWithoutRag: String, answerWithRag: String, hasRagContext: Boolean): String {
+        val builder = StringBuilder()
+        
+        if (!hasRagContext) {
+            builder.append("⚠️ RAG контекст не был найден, поэтому ответы могут быть идентичными.\n")
+            builder.append("💡 Попробуйте задать вопрос, связанный с проиндексированными документами.\n")
+            return builder.toString()
+        }
+        
+        val lengthDiff = answerWithRag.length - answerWithoutRag.length
+        val wordsDiff = answerWithRag.split(Regex("\\s+")).size - answerWithoutRag.split(Regex("\\s+")).size
+        
+        builder.append("📏 Длина ответов:\n")
+        builder.append("   Без RAG: ${answerWithoutRag.length} символов\n")
+        builder.append("   С RAG: ${answerWithRag.length} символов\n")
+        builder.append("   Разница: ${if (lengthDiff >= 0) "+" else ""}$lengthDiff символов\n\n")
+        
+        builder.append("📝 Количество слов:\n")
+        builder.append("   Без RAG: ${answerWithoutRag.split(Regex("\\s+")).size} слов\n")
+        builder.append("   С RAG: ${answerWithRag.split(Regex("\\s+")).size} слов\n")
+        builder.append("   Разница: ${if (wordsDiff >= 0) "+" else ""}$wordsDiff слов\n\n")
+        
+        // Простая проверка на схожесть
+        val similarity = calculateSimpleSimilarity(answerWithoutRag, answerWithRag)
+        builder.append("🔗 Схожесть ответов: ${String.format("%.1f", similarity * 100)}%\n\n")
+        
+        // Выводы
+        builder.append("💡 Выводы:\n")
+        if (similarity < 0.5) {
+            builder.append("   ✅ RAG значительно изменил ответ - контекст был релевантным\n")
+        } else if (similarity < 0.8) {
+            builder.append("   ⚠️ RAG частично изменил ответ - контекст был частично релевантным\n")
+        } else {
+            builder.append("   ℹ️ RAG мало повлиял на ответ - возможно, контекст был не очень релевантным\n")
+        }
+        
+        if (lengthDiff > 100) {
+            builder.append("   📚 Ответ с RAG значительно подробнее - добавлена информация из базы знаний\n")
+        } else if (lengthDiff < -100) {
+            builder.append("   ✂️ Ответ с RAG короче - возможно, модель использовала более точную информацию\n")
+        }
+        
+        return builder.toString()
+    }
+
+    private fun calculateSimpleSimilarity(text1: String, text2: String): Double {
+        val words1 = text1.lowercase().split(Regex("\\s+")).toSet()
+        val words2 = text2.lowercase().split(Regex("\\s+")).toSet()
+        
+        val intersection = words1.intersect(words2).size
+        val union = words1.union(words2).size
+        
+        return if (union == 0) 1.0 else intersection.toDouble() / union.toDouble()
+    }
+
+    fun printRagModeStatus(enabled: Boolean) {
+        val status = if (enabled) "включен" else "выключен"
+        val emoji = if (enabled) "✅" else "❌"
+        println("$emoji RAG режим $status")
+        println()
+    }
+
+    fun printComparisonModeStatus(enabled: Boolean) {
+        val status = if (enabled) "включен" else "выключен"
+        val emoji = if (enabled) "✅" else "❌"
+        println("$emoji Режим сравнения RAG $status")
+        if (enabled) {
+            println("   💡 Каждый вопрос будет обрабатываться дважды: с RAG и без RAG")
+        }
+        println()
     }
 }
