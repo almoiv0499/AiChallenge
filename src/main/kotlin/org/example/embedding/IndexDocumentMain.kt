@@ -27,8 +27,9 @@ fun main() = runBlocking {
     // Список документов для индексации
     val documentsToIndex = listOf(
         "docs/rag_index_data.md" to "OpenRouter Agent - Основная документация",
-        "docs/RAG_COMPARISON.md" to "RAG Comparison - Сравнение RAG",
-        "docs/RAG_INTEGRATION.md" to "RAG Integration - Интеграция RAG"
+        "docs/kotlin_programming_guide.md" to "Kotlin Programming Guide - Руководство по Kotlin",
+        "docs/web_development_basics.md" to "Web Development Basics - Основы веб-разработки",
+        "docs/machine_learning_intro.md" to "Machine Learning Introduction - Введение в машинное обучение"
     )
     
     // Инициализируем компоненты

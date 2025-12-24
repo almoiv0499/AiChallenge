@@ -13,6 +13,7 @@ object AppConfig {
     const val WEATHER_LONGITUDE_ENV = "WEATHER_LONGITUDE"
     const val MCP_TRANSPORT_ENV = "MCP_TRANSPORT"
     const val ANDROID_SDK_PATH_ENV = "ANDROID_SDK_PATH"
+    const val RERANKER_THRESHOLD_ENV = "RERANKER_THRESHOLD"
     const val LOCAL_PROPERTIES_FILE = "local.properties"
     fun loadApiKey(): String {
         return loadFromEnvironment()
@@ -66,6 +67,20 @@ object AppConfig {
     
     fun loadAndroidSdkPath(): String? {
         return loadAndroidSdkPathFromEnvironment() ?: loadAndroidSdkPathFromPropertiesFile()
+    }
+    
+    fun loadRerankerThreshold(): Double? {
+        val value = loadRerankerThresholdFromEnvironment() ?: loadRerankerThresholdFromPropertiesFile()
+        return value?.toDoubleOrNull()?.coerceIn(0.0, 1.0)
+    }
+    
+    private fun loadRerankerThresholdFromEnvironment(): String? = System.getenv(RERANKER_THRESHOLD_ENV)
+    private fun loadRerankerThresholdFromPropertiesFile(): String? {
+        val file = File(LOCAL_PROPERTIES_FILE)
+        if (!file.exists()) return null
+        return Properties().apply {
+            file.inputStream().use { load(it) }
+        }.getProperty(RERANKER_THRESHOLD_ENV)
     }
     
     fun loadAdbPath(androidSdkPath: String): String {

@@ -44,6 +44,22 @@ class OpenRouterClient(private val apiKey: String) {
         if (!response.status.isSuccess()) {
             val errorBody = response.bodyAsText()
             val statusCode = response.status.value
+            
+            // Обработка ошибки 402 Payment Required (недостаточно кредитов)
+            if (statusCode == 402) {
+                val message = extractErrorMessage(errorBody)
+                throw RuntimeException("""
+                    ❌ Недостаточно кредитов на OpenRouter аккаунте
+                    
+                    $message
+                    
+                    Решения:
+                    1. Пополните баланс на https://openrouter.ai/settings/credits
+                    2. Уменьшите max_tokens в запросах (текущее значение: ${OpenRouterConfig.MAX_TOKENS})
+                    3. Используйте более дешевую модель
+                """.trimIndent())
+            }
+            
             if (isTokenLimitError(statusCode, errorBody)) {
                 throw TokenLimitExceededException(
                     message = "Превышен лимит токенов в запросе",
@@ -52,6 +68,24 @@ class OpenRouterClient(private val apiKey: String) {
                 )
             }
             throw RuntimeException("Ошибка API: ${response.status} - $errorBody")
+        }
+    }
+    
+    private fun extractErrorMessage(errorBody: String): String {
+        return try {
+            val jsonElement = json.parseToJsonElement(errorBody)
+            if (jsonElement is JsonObject) {
+                val error = jsonElement["error"]
+                if (error is JsonObject) {
+                    error["message"]?.toString()?.trim('"') ?: errorBody
+                } else {
+                    errorBody
+                }
+            } else {
+                errorBody
+            }
+        } catch (e: Exception) {
+            errorBody
         }
     }
 

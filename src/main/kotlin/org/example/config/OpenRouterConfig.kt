@@ -2,9 +2,11 @@ package org.example.config
 
 object OpenRouterConfig {
     const val API_URL = "https://openrouter.ai/api/v1/responses"
-    const val DEFAULT_MODEL = Models.OPEN_AI
+    const val DEFAULT_MODEL = Models.DEEPSEEK
     const val MAX_AGENT_ITERATIONS = 3
-    const val MAX_TOKENS = 5000.0
+    // Разумное значение для max_tokens (можно увеличить при необходимости)
+    // Для бесплатных аккаунтов рекомендуется 2000-4000
+    const val MAX_TOKENS = 6000.0
     var ENABLE_TOOLS = true
     var ENABLE_TASK_REMINDER = false // По умолчанию отключено
     const val HISTORY_COMPRESSION_THRESHOLD = 3

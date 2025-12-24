@@ -21,14 +21,16 @@ class OpenRouterAgent(
     private val model: String = OpenRouterConfig.DEFAULT_MODEL,
     private val historyStorage: HistoryStorage = HistoryStorage(),
     private val deviceSearchExecutor: DeviceSearchExecutor? = null,
-    private val ragService: RagService? = null
+    ragService: RagService? = null
 ) {
+    private var ragService: RagService? = ragService
     private val temperature: Double = OpenRouterConfig.Temperature.DEFAULT
     private val conversationHistory = mutableListOf<JsonElement>()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var userMessageCount: Int = 0
     private var ragEnabled: Boolean = true
     private var comparisonMode: Boolean = false
+    private var rerankerComparisonMode: Boolean = false
 
     init {
         addSystemPrompt()
@@ -52,7 +54,17 @@ class OpenRouterAgent(
             }
         }
         
-        // Если включен режим сравнения, выполняем сравнение
+        // Если включен режим сравнения reranker, выполняем сравнение с фильтром и без
+        if (rerankerComparisonMode) {
+            if (ragService == null) {
+                println("⚠️ Режим сравнения reranker требует RAG сервис, но он не инициализирован")
+                println("   Продолжаем в обычном режиме без сравнения\n")
+            } else {
+                return compareWithAndWithoutReranker(userMessage)
+            }
+        }
+        
+        // Если включен режим сравнения RAG, выполняем сравнение
         if (comparisonMode) {
             if (ragService == null) {
                 println("⚠️ Режим сравнения требует RAG сервис, но он не инициализирован")
@@ -74,6 +86,71 @@ class OpenRouterAgent(
         
         addUserMessage(userMessage)
         return executeAgentLoop()
+    }
+    
+    /**
+     * Сравнивает ответы с reranker фильтром и без reranker фильтра
+     */
+    suspend fun compareWithAndWithoutReranker(userMessage: String): ChatResponse {
+        // Сохраняем текущее состояние истории
+        val savedHistory = conversationHistory.toList()
+        val savedUserMessageCount = userMessageCount
+        
+        // 1. Ответ БЕЗ reranker фильтра
+        ConsoleUI.printComparisonStep("БЕЗ фильтра релевантности")
+        conversationHistory.clear()
+        val historyWithoutRag = filterOutRagContexts(savedHistory)
+        conversationHistory.addAll(historyWithoutRag)
+        userMessageCount = savedUserMessageCount
+        
+        val ragContextWithoutReranker = ragService?.searchRelevantContextWithoutReranker(userMessage)
+        if (ragContextWithoutReranker != null) {
+            println("📚 Найден релевантный контекст (без фильтра)")
+            addRagContext(ragContextWithoutReranker)
+        }
+        addUserMessage(userMessage)
+        val answerWithoutReranker = executeAgentLoop()
+        
+        // 2. Ответ С reranker фильтром
+        ConsoleUI.printComparisonStep("С фильтром релевантности")
+        conversationHistory.clear()
+        conversationHistory.addAll(savedHistory)
+        userMessageCount = savedUserMessageCount
+        
+        val ragContextWithReranker = ragService?.searchRelevantContext(userMessage)
+        if (ragContextWithReranker != null) {
+            println("📚 Найден релевантный контекст (с фильтром)")
+            addRagContext(ragContextWithReranker)
+        }
+        addUserMessage(userMessage)
+        val answerWithReranker = executeAgentLoop()
+        
+        // Восстанавливаем историю
+        conversationHistory.clear()
+        conversationHistory.addAll(savedHistory)
+        userMessageCount = savedUserMessageCount
+        
+        // Выводим сравнение
+        ConsoleUI.printRerankerComparison(
+            question = userMessage,
+            answerWithReranker = answerWithReranker,
+            answerWithoutReranker = answerWithoutReranker,
+            contextWithReranker = ragContextWithReranker,
+            contextWithoutReranker = ragContextWithoutReranker
+        )
+        
+        // Восстанавливаем историю и добавляем финальный ответ с reranker
+        conversationHistory.clear()
+        conversationHistory.addAll(savedHistory)
+        userMessageCount = savedUserMessageCount
+        if (ragContextWithReranker != null) {
+            addRagContext(ragContextWithReranker)
+        }
+        addUserMessage(userMessage)
+        addAssistantMessage(answerWithReranker.response)
+        
+        // Возвращаем ответ с reranker как основной
+        return answerWithReranker
     }
     
     /**
@@ -150,6 +227,13 @@ class OpenRouterAgent(
     }
     
     /**
+     * Включает/выключает режим сравнения reranker
+     */
+    fun setRerankerComparisonMode(enabled: Boolean) {
+        rerankerComparisonMode = enabled
+    }
+    
+    /**
      * Получает текущее состояние RAG
      */
     fun isRagEnabled(): Boolean = ragEnabled
@@ -158,6 +242,23 @@ class OpenRouterAgent(
      * Получает текущий режим сравнения
      */
     fun isComparisonMode(): Boolean = comparisonMode
+    
+    /**
+     * Получает текущий режим сравнения reranker
+     */
+    fun isRerankerComparisonMode(): Boolean = rerankerComparisonMode
+    
+    /**
+     * Обновляет RAG сервис (для обновления конфигурации reranker)
+     */
+    fun updateRagService(newRagService: RagService?) {
+        ragService = newRagService
+    }
+    
+    /**
+     * Получает текущий RAG сервис
+     */
+    fun getRagService(): RagService? = ragService
     
     /**
      * Detects if the user message is requesting an on-device search.

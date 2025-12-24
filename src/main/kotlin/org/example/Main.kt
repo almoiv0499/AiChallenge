@@ -24,6 +24,8 @@ import org.example.agent.android.DeviceSearchService
 import org.example.embedding.EmbeddingClient
 import org.example.embedding.DocumentIndexStorage
 import org.example.embedding.RagService
+import org.example.embedding.RelevanceReranker
+import org.example.embedding.RerankingStrategy
 
 fun main() = runBlocking {
     ConsoleUI.printWelcome()
@@ -59,9 +61,20 @@ fun main() = runBlocking {
     val ragService = embeddingClientForRag?.let { embClient ->
         try {
             val documentStorage = DocumentIndexStorage()
-            val rag = RagService(embClient, documentStorage)
+            // Инициализируем reranker с порогом по умолчанию
+            val defaultThreshold = AppConfig.loadRerankerThreshold() ?: 0.7
+            val reranker = RelevanceReranker(
+                RerankingStrategy.ThresholdBased(threshold = defaultThreshold)
+            )
+            val rag = RagService(
+                embClient, 
+                documentStorage,
+                reranker = reranker,
+                useReranker = true
+            )
             if (rag.hasDocuments()) {
                 println("✅ RAG service initialized (local document search enabled)")
+                println("   📊 Фильтр релевантности: включен (порог: ${String.format("%.2f", defaultThreshold)})")
             } else {
                 println("⚠️ RAG service initialized but no documents in index. Run 'gradlew runIndexDocs' to index documents.")
             }
@@ -79,7 +92,7 @@ fun main() = runBlocking {
         ragService = ragService
     )
     ConsoleUI.printReady()
-    runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag)
+    runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag, ragService)
 }
 
 private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: String, pageId: String?) {
@@ -138,7 +151,8 @@ private suspend fun runChatLoop(
     client: OpenRouterClient,
     notionApiKey: String,
     databaseId: String?,
-    embeddingClientForRag: EmbeddingClient?
+    embeddingClientForRag: EmbeddingClient?,
+    ragService: RagService?
 ) {
     var taskScheduler: TaskReminderScheduler? = null
     while (true) {
@@ -168,6 +182,35 @@ private suspend fun runChatLoop(
             isRagCompareCommand(input) -> {
                 agent.setComparisonMode(!agent.isComparisonMode())
                 ConsoleUI.printComparisonModeStatus(agent.isComparisonMode())
+            }
+            isRerankerCommand(input) -> {
+                val currentRagService = agent.getRagService()
+                if (currentRagService != null) {
+                    val currentThreshold = currentRagService.getRerankerThreshold()
+                    val isEnabled = currentThreshold != null
+                    val newRagService = currentRagService.setRerankerEnabled(!isEnabled)
+                    agent.updateRagService(newRagService)
+                    ConsoleUI.printRerankerModeStatus(!isEnabled)
+                } else {
+                    println("⚠️ RAG сервис не инициализирован")
+                }
+            }
+            isRerankerCompareCommand(input) -> {
+                agent.setRerankerComparisonMode(!agent.isRerankerComparisonMode())
+                ConsoleUI.printRerankerModeStatus(agent.isRerankerComparisonMode())
+            }
+            isRerankerThresholdCommand(input) -> {
+                val threshold = extractThreshold(input)
+                val currentRagService = agent.getRagService()
+                if (threshold != null && currentRagService != null) {
+                    val updatedRagService = currentRagService.updateRerankerThreshold(threshold)
+                    agent.updateRagService(updatedRagService)
+                    ConsoleUI.printRerankerThreshold(threshold)
+                } else if (threshold == null) {
+                    println("❌ Неверный формат. Используйте: /reranker-threshold <число от 0.0 до 1.0>")
+                } else {
+                    println("⚠️ RAG сервис не инициализирован")
+                }
             }
             isTaskReminderCommand(input) -> {
                 taskScheduler = toggleTaskReminder(notionApiKey, databaseId, taskScheduler)
@@ -215,6 +258,21 @@ private fun isRagCommand(input: String): Boolean =
 
 private fun isRagCompareCommand(input: String): Boolean =
     input.lowercase() in listOf("/rag-compare", "/ragcompare", "/compare-rag", "/compare")
+
+private fun isRerankerCommand(input: String): Boolean =
+    input.lowercase() in listOf("/reranker", "/reranker-toggle", "/reranker-mode")
+
+private fun isRerankerCompareCommand(input: String): Boolean =
+    input.lowercase() in listOf("/reranker-compare", "/rerankercompare", "/compare-reranker")
+
+private fun isRerankerThresholdCommand(input: String): Boolean =
+    input.lowercase().startsWith("/reranker-threshold") || input.lowercase().startsWith("/reranker-threshold")
+
+private fun extractThreshold(input: String): Double? {
+    val parts = input.trim().split(Regex("\\s+"))
+    if (parts.size < 2) return null
+    return parts[1].toDoubleOrNull()?.coerceIn(0.0, 1.0)
+}
 
 /**
  * Toggles the task reminder scheduler on/off.
