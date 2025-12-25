@@ -24,65 +24,48 @@ fun main() = runBlocking {
         return@runBlocking
     }
     
-    // Список документов для индексации
-    val documentsToIndex = listOf(
-        "docs/rag_index_data.md" to "OpenRouter Agent - Основная документация",
-        "docs/kotlin_programming_guide.md" to "Kotlin Programming Guide - Руководство по Kotlin",
-        "docs/web_development_basics.md" to "Web Development Basics - Основы веб-разработки",
-        "docs/machine_learning_intro.md" to "Machine Learning Introduction - Введение в машинное обучение"
-    )
+    // Путь к документу
+    val docPath = File("docs/rag_test.md")
+    if (!docPath.exists()) {
+        println("❌ Файл не найден: ${docPath.absolutePath}")
+        return@runBlocking
+    }
+    
+    // Читаем документ
+    println("📖 Чтение документа: ${docPath.absolutePath}")
+    val documentText = docPath.readText(Charsets.UTF_8)
+    
+    if (documentText.isBlank()) {
+        println("❌ Документ пуст")
+        return@runBlocking
+    }
+    
+    println("📊 Размер документа: ${documentText.length} символов")
     
     // Инициализируем компоненты
     val embeddingClient = EmbeddingClient(apiKey)
     val storage = DocumentIndexStorage()
     val indexer = DocumentIndexer(embeddingClient, storage)
     
-    var totalChunks = 0
-    var indexedCount = 0
-    
     try {
-        for ((docPathStr, docTitle) in documentsToIndex) {
-            val docPath = File(docPathStr)
-            if (!docPath.exists()) {
-                println("⚠️ Файл не найден: ${docPath.absolutePath}, пропускаем...")
-                continue
-            }
-            
-            // Читаем документ
-            println("\n📖 Чтение документа: ${docPath.absolutePath}")
-            val documentText = docPath.readText(Charsets.UTF_8)
-            
-            if (documentText.isBlank()) {
-                println("⚠️ Документ пуст, пропускаем...")
-                continue
-            }
-            
-            println("📊 Размер документа: ${documentText.length} символов")
-            
-            // Генерируем уникальный ID для документа
-            val documentId = "${docPath.nameWithoutExtension}_${UUID.randomUUID().toString().take(8)}"
-            
-            // Индексируем документ
-            val chunkCount = indexer.indexDocument(
-                documentId = documentId,
-                text = documentText,
-                source = docPath.absolutePath,
-                title = docTitle,
-                metadata = mapOf(
-                    "file" to docPath.name,
-                    "path" to docPath.absolutePath,
-                    "title" to docTitle
-                )
+        // Генерируем уникальный ID для документа
+        val documentId = "docs_md_${UUID.randomUUID().toString().take(8)}"
+        
+        // Индексируем документ
+        val chunkCount = indexer.indexDocument(
+            documentId = documentId,
+            text = documentText,
+            source = docPath.absolutePath,
+            title = "Documentation",
+            metadata = mapOf(
+                "file" to docPath.name,
+                "path" to docPath.absolutePath
             )
-            
-            totalChunks += chunkCount
-            indexedCount++
-            println("✅ Проиндексировано: $chunkCount чанков (ID: $documentId)")
-        }
+        )
         
         println("\n✅ Индексация завершена успешно!")
-        println("   Документов проиндексировано: $indexedCount")
-        println("   Всего чанков: $totalChunks")
+        println("   Документ ID: $documentId")
+        println("   Чанков проиндексировано: $chunkCount")
         println("   База данных: document_index.db")
         
         // Показываем статистику

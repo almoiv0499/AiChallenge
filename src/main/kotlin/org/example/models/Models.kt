@@ -36,7 +36,8 @@ data class ChatResponse(
     val response: String,
     val toolCalls: List<ToolCallResult> = emptyList(),
     val apiResponse: ApiResponse? = null,
-    val temperature: Double? = null
+    val temperature: Double? = null,
+    val sources: List<RagSource> = emptyList()
 )
 
 @Serializable
@@ -44,6 +45,16 @@ data class ToolCallResult(
     val toolName: String,
     val arguments: Map<String, String>,
     val result: String
+)
+
+/**
+ * Источник информации из RAG базы документов
+ */
+@Serializable
+data class RagSource(
+    val source: String,
+    val title: String? = null,
+    val similarity: Double = 0.0
 )
 
 /**
