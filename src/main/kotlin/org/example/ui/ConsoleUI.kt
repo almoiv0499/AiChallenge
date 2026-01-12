@@ -14,11 +14,15 @@ object ConsoleUI {
         ║         🤖 OpenRouter Agent - Терминальный чат 🤖            ║
         ╠══════════════════════════════════════════════════════════════╣
         ║  Команды:                                                    ║
-        ║    /exit         - выход из программы                        ║
-        ║    /clear        - очистить историю разговора                 ║
-        ║    /clear-tasks  - очистить базу данных задач                 ║
-        ║    /help         - показать справку                          ║
-        ║    /tools        - переключить отправку инструментов         ║
+        ║    /exit            - выход из программы                     ║
+        ║    /clear           - очистить историю разговора             ║
+        ║    /help            - показать справку                       ║
+        ║    /help <вопрос>   - поиск в документации проекта (RAG)     ║
+        ║    /tools           - переключить отправку инструментов      ║
+        ╠══════════════════════════════════════════════════════════════╣
+        ║  💡 Примеры:                                                 ║
+        ║    /help как настроить проект?                               ║
+        ║    /help какие правила стиля кода?                           ║
         ╚══════════════════════════════════════════════════════════════╝
         """.trimIndent()
     )
@@ -28,25 +32,65 @@ object ConsoleUI {
         
         📖 Справка по использованию OpenRouter Agent:
         
-        Доступные инструменты:
-        • get_current_time - узнать текущее время
-        • calculator       - математические вычисления
-        • search          - поиск информации
-        • random_number   - генерация случайного числа
+        ═══════════════════════════════════════════════════════════════
+        📋 КОМАНДЫ
+        ═══════════════════════════════════════════════════════════════
         
-        Примеры запросов:
+        🔹 Основные команды:
+        • /exit            - выход из программы
+        • /clear           - очистить историю разговора
+        • /help            - эта справка
+        • /tools           - переключить использование инструментов
+        
+        🔹 Помощь по OpenRouterAgent (RAG):
+        • /help <запрос>   - поиск по OpenRouterAgent.kt
+        • Примеры:
+          🔍 /help что делает processMessage
+          🔍 /help как работает executeAgentLoop
+          🔍 /help системный промпт
+          📂 /help строки 100-200
+        
+        🔹 Задачи:
+        • /tasks           - напоминания о задачах (вкл/выкл)
+        • /clear-tasks     - очистить базу данных задач
+        
+        ═══════════════════════════════════════════════════════════════
+        🔧 ИНСТРУМЕНТЫ
+        ═══════════════════════════════════════════════════════════════
+        
+        📌 Встроенные:
+        • get_current_time - текущее время
+        • calculator       - математические вычисления
+        • search           - поиск информации
+        • random_number    - генерация случайного числа
+        
+        📌 MCP Notion (порт 8081):
+        • notion_get_tasks    - получить задачи
+        • notion_create_task  - создать задачу
+        • notion_update_task  - обновить задачу
+        
+        📌 MCP Weather (порт 8082):
+        • get_weather   - текущая погода
+        • get_forecast  - прогноз погоды
+        
+        📌 MCP Git (порт 8083):
+        • get_current_branch  - текущая ветка
+        • get_git_status      - статус репозитория
+        • get_open_files      - изменённые файлы (git status)
+        • get_ide_open_files  - файлы, открытые в IDE
+        • get_recent_commits  - последние коммиты
+        
+        ═══════════════════════════════════════════════════════════════
+        💡 ПРИМЕРЫ ЗАПРОСОВ
+        ═══════════════════════════════════════════════════════════════
+        
         • "Сколько будет 25 * 4?"
         • "Который сейчас час?"
-        • "Сгенерируй случайное число от 1 до 100"
-        • "Найди информацию о Kotlin"
-        
-        Команды:
-        • /exit        - выход
-        • /clear       - очистить историю разговора
-        • /clear-tasks - очистить базу данных задач
-        • /tasks       - переключить напоминания о задачах (вкл/выкл)
-        • /help        - эта справка
-        • /tools       - переключить отправку инструментов (вкл/выкл)
+        • "На какой ветке я сейчас?"
+        • "Покажи последние коммиты"
+        • "Какие файлы изменены?" (git status)
+        • "Какие файлы открыты в IDE?" (вкладки Android Studio)
+        • "Какая погода в Москве?"
         
         """.trimIndent()
     )
@@ -78,7 +122,6 @@ object ConsoleUI {
         printSeparator(SEPARATOR_CHAR)
         println("📝 Ответ: ${response.response}")
         printToolCallsIfPresent(response)
-        printSourcesIfPresent(response)
         printSeparator(SEPARATOR_CHAR)
         println()
     }
@@ -158,20 +201,6 @@ object ConsoleUI {
         if (response.toolCalls.isEmpty()) return
         println("\n🔧 Использованные инструменты:")
         response.toolCalls.forEach { println("   • ${it.toolName}: ${it.result}") }
-    }
-    
-    private fun printSourcesIfPresent(response: ChatResponse) {
-        if (response.sources.isEmpty()) return
-        println("\n📚 Источники:")
-        response.sources.forEachIndexed { index, source ->
-            val sourceInfo = if (source.title != null) {
-                "${source.title} (${source.source})"
-            } else {
-                source.source
-            }
-            val similarityPercent = (source.similarity * 100).toInt()
-            println("   ${index + 1}. $sourceInfo (релевантность: $similarityPercent%)")
-        }
     }
 
     fun printHistoryCompressionStarted() {

@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.example.client.OpenRouterClient
@@ -14,7 +15,6 @@ import org.example.tools.ToolRegistry
 import org.example.ui.ConsoleUI
 import org.example.agent.android.DeviceSearchExecutor
 import org.example.embedding.RagService
-import org.example.embedding.RagContext
 
 class OpenRouterAgent(
     private val client: OpenRouterClient,
@@ -45,52 +45,13 @@ class OpenRouterAgent(
                 val result = deviceSearchExecutor.executeSearch(searchQuery)
                 return ChatResponse(
                     response = result,
-                    toolCalls = emptyList(),
-                    temperature = temperature
+                    toolCalls = emptyList()
                 )
             }
         }
         
-        // Проверяем, нужен ли RAG для данного запроса
-        val needsRag = shouldUseRag(userMessage)
-        
-        // Поиск релевантного контекста через RAG (только если нужен)
-        val ragContexts = if (needsRag) {
-            ragService?.searchContext(userMessage) ?: emptyList()
-        } else {
-            emptyList()
-        }
-        
-        // Фильтруем источники по минимальной релевантности (50%)
-        val MIN_RELEVANCE_FOR_DISPLAY = 0.5
-        val ragSources = ragContexts
-            .filter { it.similarity >= MIN_RELEVANCE_FOR_DISPLAY }
-            .map { 
-                RagSource(
-                    source = it.source,
-                    title = it.title,
-                    similarity = it.similarity
-                )
-            }
-        
-        // Добавляем контекст RAG в сообщение пользователя, если он найден и релевантен
-        val enrichedMessage = if (ragContexts.isNotEmpty() && ragSources.isNotEmpty()) {
-            val relevantContexts = ragContexts.filter { it.similarity >= MIN_RELEVANCE_FOR_DISPLAY }
-            if (relevantContexts.isNotEmpty()) {
-                val contextText = ragService!!.formatContextForPrompt(relevantContexts)
-                "$userMessage\n\n$contextText"
-            } else {
-                userMessage
-            }
-        } else {
-            userMessage
-        }
-        
-        addUserMessage(enrichedMessage)
-        val response = executeAgentLoop()
-        
-        // Добавляем источники в ответ (только если они есть и релевантны)
-        return response.copy(sources = ragSources)
+        addUserMessage(userMessage)
+        return executeAgentLoop()
     }
     
     /**
@@ -111,33 +72,6 @@ class OpenRouterAgent(
             "find in emulator"
         )
         return searchKeywords.any { lowerMessage.contains(it) }
-    }
-    
-    /**
-     * Определяет, нужен ли RAG для данного запроса.
-     * RAG не нужен для запросов о погоде, времени, калькуляторе и т.д.
-     */
-    private fun shouldUseRag(message: String): Boolean {
-        val lowerMessage = message.lowercase()
-        
-        // Ключевые слова, которые указывают на запросы, не требующие RAG
-        val nonRagKeywords = listOf(
-            "погода", "weather",
-            "время", "time", "час", "часы",
-            "калькулятор", "calculator", "посчитай", "вычисли",
-            "сколько будет", "сколько стоит",
-            "случайное число", "random number",
-            "привет", "hello", "hi",
-            "как дела", "how are you"
-        )
-        
-        // Если запрос содержит ключевые слова, не требующие RAG, пропускаем RAG
-        if (nonRagKeywords.any { lowerMessage.contains(it) }) {
-            return false
-        }
-        
-        // Для остальных запросов используем RAG
-        return true
     }
     
     /**
@@ -207,7 +141,37 @@ class OpenRouterAgent(
                         hasMessage = true
                         val text = extractTextContent(item)
                         if (text.isNotEmpty()) {
-                            finalMessageText = text
+                            // Проверяем, не содержит ли текст JSON с function_call
+                            val parsedFunctionCall = tryParseFunctionCallFromText(text)
+                            if (parsedFunctionCall != null) {
+                                hasFunctionCall = true
+                                println("✅ Function call распознан: ${parsedFunctionCall.name}")
+                                // Создаем временный OpenRouterOutputItem для обработки
+                                val functionCallItem = OpenRouterOutputItem(
+                                    type = "function_call",
+                                    name = parsedFunctionCall.name,
+                                    arguments = parsedFunctionCall.arguments,
+                                    callId = parsedFunctionCall.callId
+                                )
+                                addFunctionCallToHistory(functionCallItem)
+                                val result = handleFunctionCall(functionCallItem, toolCallResults)
+                                if (result != null) {
+                                    addFunctionResultToHistory(parsedFunctionCall.callId, result)
+                                }
+                                // Сохраняем текст до function_call как контекст для финального ответа
+                                val textBeforeJson = extractTextBeforeJson(text)
+                                if (textBeforeJson.isNotBlank()) {
+                                    // Сохраняем вводный текст, но не как финальный ответ
+                                    println("📝 Текст перед function_call: $textBeforeJson")
+                                }
+                            } else {
+                                // Проверяем, есть ли в тексте упоминание function_call без полного JSON
+                                if (text.contains("function_call") || text.contains("\"name\"")) {
+                                    println("⚠️ Текст содержит признаки function_call, но не удалось распарсить:")
+                                    println("   Текст: ${text.take(500)}...")
+                                }
+                                finalMessageText = text
+                            }
                         }
                     }
 
@@ -227,8 +191,7 @@ class OpenRouterAgent(
                 return ChatResponse(
                     response = finalMessageText,
                     toolCalls = toolCallResults,
-                    apiResponse = apiResponse,
-                    temperature = temperature
+                    apiResponse = apiResponse
                 )
             }
             if (!hasMessage && !hasFunctionCall) {
@@ -317,15 +280,244 @@ class OpenRouterAgent(
             ?.mapNotNull { it.text }
             ?.joinToString("") ?: ""
     }
+    
+    /**
+     * Извлекает текст до JSON блока с function_call.
+     */
+    private fun extractTextBeforeJson(text: String): String {
+        // Ищем начало JSON блока
+        val jsonStartPatterns = listOf(
+            Regex("""```json\s*\{"""),
+            Regex("""```\s*\{"""),
+            Regex("""\{\s*"function_call"""")
+        )
+        
+        for (pattern in jsonStartPatterns) {
+            val match = pattern.find(text)
+            if (match != null) {
+                return text.substring(0, match.range.first).trim()
+            }
+        }
+        
+        return ""
+    }
+
+    /**
+     * Пытается извлечь function_call из текста, если модель вернула его как JSON в тексте.
+     */
+    private fun tryParseFunctionCallFromText(text: String): ParsedFunctionCall? {
+        return try {
+            // 1. Сначала пытаемся извлечь JSON из markdown блока ```json ... ```
+            val jsonFromMarkdown = extractJsonFromMarkdown(text)
+            if (jsonFromMarkdown != null) {
+                val parsed = parseJsonFunctionCall(jsonFromMarkdown)
+                if (parsed != null) {
+                    println("🔧 Распознан function_call из markdown: ${parsed.name}")
+                    return parsed
+                }
+            }
+            
+            // 2. Пытаемся найти JSON объект напрямую в тексте
+            val jsonFromText = extractJsonFromText(text)
+            if (jsonFromText != null) {
+                val parsed = parseJsonFunctionCall(jsonFromText)
+                if (parsed != null) {
+                    println("🔧 Распознан function_call из текста: ${parsed.name}")
+                    return parsed
+                }
+            }
+            
+            // 3. Regex fallback для различных форматов
+            val regexParsed = parseWithRegex(text)
+            if (regexParsed != null) {
+                println("🔧 Распознан function_call через regex: ${regexParsed.name}")
+                return regexParsed
+            }
+            
+            // 4. Последняя попытка - ищем известные имена инструментов
+            val knownTools = listOf(
+                "get_current_branch", "get_git_status", "get_open_files", "get_ide_open_files", "get_recent_commits",
+                "get_weather", "get_forecast", "calculator", "get_current_time", "random_number",
+                "notion_get_tasks", "notion_create_task", "notion_update_task", "get_notion_page",
+                "append_notion_block"
+            )
+            
+            for (toolName in knownTools) {
+                if (text.contains("\"name\"") && text.contains("\"$toolName\"")) {
+                    println("🔧 Распознан function_call по имени инструмента: $toolName")
+                    return ParsedFunctionCall(
+                        name = toolName,
+                        arguments = "{}",
+                        callId = "parsed_${System.currentTimeMillis()}"
+                    )
+                }
+            }
+            
+            null
+        } catch (e: Exception) {
+            println("⚠️ Ошибка парсинга function_call: ${e.message}")
+            null
+        }
+    }
+    
+    /**
+     * Извлекает JSON из markdown блока ```json ... ``` или ``` ... ```
+     */
+    private fun extractJsonFromMarkdown(text: String): String? {
+        // Паттерн для ```json ... ``` или ``` ... ```
+        val patterns = listOf(
+            Regex("""```json\s*([\s\S]*?)```"""),
+            Regex("""```\s*([\s\S]*?)```""")
+        )
+        
+        for (pattern in patterns) {
+            val match = pattern.find(text)
+            if (match != null) {
+                val content = match.groupValues[1].trim()
+                if (content.contains("function_call") && content.startsWith("{")) {
+                    return content
+                }
+            }
+        }
+        return null
+    }
+    
+    /**
+     * Извлекает JSON объект из текста, ища сбалансированные скобки
+     */
+    private fun extractJsonFromText(text: String): String? {
+        // Ищем начало JSON с function_call
+        val startIndex = text.indexOf("{\"function_call\"")
+        if (startIndex == -1) {
+            // Попробуем с пробелами
+            val altStart = text.indexOf("{ \"function_call\"")
+            if (altStart == -1) return null
+            return extractBalancedJson(text, altStart)
+        }
+        return extractBalancedJson(text, startIndex)
+    }
+    
+    /**
+     * Извлекает JSON с балансировкой скобок начиная с указанной позиции
+     */
+    private fun extractBalancedJson(text: String, startIndex: Int): String? {
+        var braceCount = 0
+        var inString = false
+        var escaped = false
+        
+        for (i in startIndex until text.length) {
+            val char = text[i]
+            
+            if (escaped) {
+                escaped = false
+                continue
+            }
+            
+            when {
+                char == '\\' -> escaped = true
+                char == '"' -> inString = !inString
+                !inString && char == '{' -> braceCount++
+                !inString && char == '}' -> {
+                    braceCount--
+                    if (braceCount == 0) {
+                        return text.substring(startIndex, i + 1)
+                    }
+                }
+            }
+        }
+        return null
+    }
+    
+    /**
+     * Парсит JSON строку и извлекает function_call
+     */
+    private fun parseJsonFunctionCall(jsonStr: String): ParsedFunctionCall? {
+        return try {
+            val jsonElement = json.parseToJsonElement(jsonStr)
+            if (jsonElement is JsonObject) {
+                val functionCallObj = jsonElement["function_call"] as? JsonObject
+                if (functionCallObj != null) {
+                    val name = functionCallObj["name"]?.jsonPrimitive?.content
+                    val arguments = functionCallObj["arguments"]?.let { argElement ->
+                        when (argElement) {
+                            is JsonPrimitive -> argElement.content
+                            is JsonObject -> json.encodeToString(JsonObject.serializer(), argElement)
+                            is JsonNull -> "{}"
+                            else -> "{}"
+                        }
+                    } ?: "{}"
+                    
+                    if (name != null) {
+                        return ParsedFunctionCall(
+                            name = name,
+                            arguments = arguments,
+                            callId = "parsed_${System.currentTimeMillis()}"
+                        )
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    /**
+     * Пытается распарсить function_call с помощью regex
+     */
+    private fun parseWithRegex(text: String): ParsedFunctionCall? {
+        // Паттерн 1: arguments как строка "{}"
+        val stringArgsPattern = Regex(""""name"\s*:\s*"([^"]+)"[\s\S]*?"arguments"\s*:\s*"(\{[^"]*\})"""")
+        val stringArgsMatch = stringArgsPattern.find(text)
+        if (stringArgsMatch != null) {
+            return ParsedFunctionCall(
+                name = stringArgsMatch.groupValues[1],
+                arguments = stringArgsMatch.groupValues[2],
+                callId = "parsed_${System.currentTimeMillis()}"
+            )
+        }
+        
+        // Паттерн 2: arguments как объект {}
+        val objectArgsPattern = Regex(""""name"\s*:\s*"([^"]+)"[\s\S]*?"arguments"\s*:\s*(\{[^}]*\})""")
+        val objectArgsMatch = objectArgsPattern.find(text)
+        if (objectArgsMatch != null) {
+            return ParsedFunctionCall(
+                name = objectArgsMatch.groupValues[1],
+                arguments = objectArgsMatch.groupValues[2],
+                callId = "parsed_${System.currentTimeMillis()}"
+            )
+        }
+        
+        // Паттерн 3: только имя (для инструментов без аргументов)
+        val nameOnlyPattern = Regex(""""name"\s*:\s*"([^"]+)"""")
+        val nameOnlyMatch = nameOnlyPattern.find(text)
+        if (nameOnlyMatch != null && text.contains("function_call")) {
+            return ParsedFunctionCall(
+                name = nameOnlyMatch.groupValues[1],
+                arguments = "{}",
+                callId = "parsed_${System.currentTimeMillis()}"
+            )
+        }
+        
+        return null
+    }
+
+    /**
+     * Вспомогательный класс для хранения распарсенного function_call.
+     */
+    private data class ParsedFunctionCall(
+        val name: String,
+        val arguments: String,
+        val callId: String
+    )
 
     private fun createErrorResponse(message: String, toolCalls: List<ToolCallResult>) =
-        ChatResponse(response = message, toolCalls = toolCalls, temperature = temperature)
+        ChatResponse(response = message, toolCalls = toolCalls)
 
     private fun createLimitExceededResponse(toolCalls: List<ToolCallResult>) =
         ChatResponse(
             response = "Превышен лимит итераций обработки",
-            toolCalls = toolCalls,
-            temperature = temperature
+            toolCalls = toolCalls
         )
 
     private fun addSystemPrompt() {
@@ -636,13 +828,32 @@ class OpenRouterAgent(
 Запрещено: выдавать внутренние рассуждения как факты, помогать в незаконных/опасных действиях, выдумывать источники.
       """.trimIndent()
 
-        const val SIMPLE_SYSTEM_PROMPT = """Ты — помощник с доступом к инструментам для работы с Notion API и получения погоды. 
+        const val SIMPLE_SYSTEM_PROMPT = """Ты — помощник с доступом к инструментам для работы с Notion API, получения погоды и работы с Git репозиторием. 
 
-ВАЖНО: Использование контекста из базы документов (RAG):
-- Если в сообщении пользователя присутствует раздел "=== РЕЛЕВАНТНЫЙ КОНТЕКСТ ИЗ БАЗЫ ДОКУМЕНТОВ ===", это означает, что найдена релевантная информация из базы документов.
-- ОБЯЗАТЕЛЬНО используй эту информацию для формирования ответа, если она релевантна запросу пользователя.
-- При ответе ссылайся на источники из контекста, указывая название документа или источник.
-- Если контекст не релевантен запросу, можешь его игнорировать, но предпочтительно использовать его для более точного ответа.
+КРИТИЧЕСКИ ВАЖНО: Ты ДОЛЖЕН использовать доступные инструменты для ответа на вопросы пользователя. НЕ давай общие советы или примеры кода - ВЫЗЫВАЙ инструменты напрямую через function_call.
+
+ОСОБОЕ ВНИМАНИЕ: Вопросы о файлах, ветках, статусе Git, коммитах - это вопросы о текущем состоянии репозитория. Для них НЕ ищи информацию в документации проекта - ВЫЗЫВАЙ Git инструменты напрямую. Например:
+- "какие файлы открыты в IDE" → вызови get_ide_open_files с аргументами {} (файлы в Android Studio)
+- "какие файлы изменены" → вызови get_open_files с аргументами {} (git status)
+- "на какой ветке я нахожусь" → вызови get_current_branch с аргументами {}  
+- "статус git" → вызови get_git_status с аргументами {}
+- "последние коммиты" → вызови get_recent_commits
+
+ВАЖНО: Когда пользователь спрашивает о Git репозитории или IDE:
+1. ОБЯЗАТЕЛЬНО и НЕМЕДЛЕННО вызови соответствующий инструмент через function_call:
+   - get_current_branch - для вопросов о текущей ветке (например: "на какой ветке", "какая ветка", "current branch"). Вызови с пустыми аргументами {}.
+   - get_git_status - для вопросов о статусе репозитория (например: "статус git", "что изменено", "git status"). Вызови с пустыми аргументами {}.
+   - get_open_files - для вопросов об ИЗМЕНЁННЫХ файлах в Git (например: "какие файлы изменены", "modified files", "uncommitted changes", "незакоммиченные изменения"). Вызови с пустыми аргументами {}.
+   - get_ide_open_files - для вопросов о файлах, ОТКРЫТЫХ В IDE (например: "какие файлы сейчас открыты", "какие файлы открыты в Android Studio", "какие вкладки открыты", "open tabs", "what files are open in IDE"). Вызови с пустыми аргументами {}.
+   - get_recent_commits - для вопросов о последних коммитах. Можно указать limit в аргументах.
+2. РАЗНИЦА МЕЖДУ ИНСТРУМЕНТАМИ:
+   - get_open_files = файлы с изменениями в Git (git status)
+   - get_ide_open_files = файлы, открытые в редакторе Android Studio/IntelliJ
+3. НЕ пытайся искать информацию о Git в документации проекта
+4. НЕ давай примеры кода, инструкции или общие советы - ВЫЗЫВАЙ инструмент через function_call и отвечай на основе его результата
+5. После получения результата от инструмента, дай прямой ответ пользователю на основе этого результата
+6. Если пользователь спрашивает "какие файлы сейчас открыты" или "какие вкладки открыты" - используй get_ide_open_files
+7. Если пользователь спрашивает "какие файлы изменены" или "что не закоммичено" - используй get_open_files
 
 ВАЖНО: Когда пользователь спрашивает о погоде:
 1. ОБЯЗАТЕЛЬНО вызови инструмент get_weather для получения данных о погоде

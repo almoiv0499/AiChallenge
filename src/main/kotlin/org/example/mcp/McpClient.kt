@@ -132,27 +132,10 @@ class McpClient(
             }
             throw McpException("Tool execution error: $errorText")
         }
-        val contentElement = resultObject["content"]
-        val contentArray = when {
-            contentElement == null || contentElement is JsonNull -> null
-            contentElement is JsonArray -> contentElement
-            else -> null
-        }
-        val contentItem = contentArray?.firstOrNull()
-        val contentText = when {
-            contentItem == null || contentItem is JsonNull -> throw McpException("Tool call failed: empty content")
-            contentItem is JsonObject -> contentItem.get("text")?.jsonPrimitive?.content
-                ?: throw McpException("Tool call failed: empty content")
-            else -> throw McpException("Tool call failed: content is not a JSON object")
-        }
-        if (contentText.isBlank()) {
-            throw McpException("Tool call failed: content is empty")
-        }
-        return try {
-            json.parseToJsonElement(contentText)
-        } catch (e: Exception) {
-            throw McpException("Tool call failed: invalid JSON in content: ${e.message}")
-        }
+        
+        // Возвращаем весь объект результата, чтобы McpToolAdapter мог его обработать
+        // Формат: { "isError": false, "content": [{ "type": "text", "text": "..." }] }
+        return resultObject
     }
 
     fun close() {

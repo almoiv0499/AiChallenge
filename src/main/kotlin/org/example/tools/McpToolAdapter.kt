@@ -111,6 +111,10 @@ class McpToolAdapter(
             else -> null
         }
         return when {
+            // Git/MCP tool result format: { "isError": false, "content": [{ "type": "text", "text": "..." }] }
+            resultObj != null && resultObj.containsKey("content") && resultObj.containsKey("isError") -> {
+                formatMcpToolResult(resultObj)
+            }
             resultObj != null && resultObj.containsKey("object") && resultObj["object"]?.jsonPrimitive?.content == "page" -> {
                 formatNotionPage(resultObj)
             }
@@ -142,6 +146,40 @@ class McpToolAdapter(
             else -> {
                 json.encodeToString(JsonElement.serializer(), result)
             }
+        }
+    }
+
+    /**
+     * Форматирует результат MCP инструмента (Git, etc.)
+     * Формат: { "isError": false, "content": [{ "type": "text", "text": "result" }] }
+     */
+    private fun formatMcpToolResult(resultObj: JsonObject): String {
+        val isError = resultObj["isError"]?.jsonPrimitive?.content?.toBoolean() ?: false
+        val contentArray = safeGetJsonArray(resultObj["content"])
+        
+        if (contentArray == null || contentArray.isEmpty()) {
+            return if (isError) "Ошибка: пустой результат" else "Нет данных"
+        }
+        
+        val texts = contentArray.mapNotNull { item ->
+            when {
+                item is JsonNull -> null
+                item is JsonObject -> {
+                    val type = item["type"]?.jsonPrimitive?.content
+                    if (type == "text") {
+                        item["text"]?.jsonPrimitive?.content
+                    } else {
+                        null
+                    }
+                }
+                else -> null
+            }
+        }
+        
+        return if (isError) {
+            "❌ Ошибка: ${texts.joinToString("\n")}"
+        } else {
+            texts.joinToString("\n")
         }
     }
 

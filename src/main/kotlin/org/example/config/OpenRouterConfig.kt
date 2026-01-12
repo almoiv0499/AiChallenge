@@ -9,8 +9,9 @@ object OpenRouterConfig {
     var ENABLE_TASK_REMINDER = false // По умолчанию отключено
     const val HISTORY_COMPRESSION_THRESHOLD = 3
     const val HISTORY_COMPRESSION_KEEP_LAST = 1
-    val MODELS_WITHOUT_TOOLS = setOf(
-        "deepseek/deepseek-v3.2"
+    val MODELS_WITHOUT_TOOLS = setOf<String>(
+        // DeepSeek поддерживает function calling, убираем из списка исключений
+        // "deepseek/deepseek-v3.2"
     )
     fun supportsTools(model: String): Boolean = model !in MODELS_WITHOUT_TOOLS
     object Headers {

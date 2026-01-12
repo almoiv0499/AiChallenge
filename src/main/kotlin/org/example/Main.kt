@@ -12,6 +12,7 @@ import org.example.config.OpenRouterConfig
 import org.example.mcp.McpClient
 import org.example.mcp.server.NotionMcpServer
 import org.example.mcp.server.WeatherMcpServer
+import org.example.mcp.server.GitMcpServer
 import org.example.notion.NotionClient
 import org.example.weather.WeatherClient
 import org.example.tools.McpToolAdapter
@@ -24,6 +25,7 @@ import org.example.agent.android.DeviceSearchService
 import org.example.embedding.EmbeddingClient
 import org.example.embedding.DocumentIndexStorage
 import org.example.embedding.RagService
+import org.example.embedding.ProjectDocsIndexer
 
 fun main() = runBlocking {
     ConsoleUI.printWelcome()
@@ -61,9 +63,25 @@ fun main() = runBlocking {
             val documentStorage = DocumentIndexStorage()
             val rag = RagService(embClient, documentStorage)
             if (rag.hasDocuments()) {
-                println("✅ RAG service initialized (local document search enabled)")
+                println("✅ RAG service initialized (local document search enabled, ${rag.getDocumentCount()} documents indexed)")
             } else {
-                println("⚠️ RAG service initialized but no documents in index. Run 'gradlew runIndexDocs' to index documents.")
+                println("⚠️ RAG service initialized but no documents in index.")
+                println("📚 Attempting to auto-index project documentation...")
+                try {
+                    val indexer = ProjectDocsIndexer.create()
+                    if (indexer != null) {
+                        val indexedCount = indexer.indexProjectDocumentation()
+                        if (indexedCount > 0) {
+                            println("✅ Successfully indexed $indexedCount documentation files")
+                        } else {
+                            println("⚠️ No documentation files found to index")
+                        }
+                        indexer.close()
+                    }
+                } catch (e: Exception) {
+                    println("⚠️ Failed to auto-index documentation: ${e.message}")
+                    println("   You can manually index documents by running 'gradlew runIndexDocs'")
+                }
             }
             rag
         } catch (e: Exception) {
@@ -79,7 +97,7 @@ fun main() = runBlocking {
         ragService = ragService
     )
     ConsoleUI.printReady()
-    runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag)
+    runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag, ragService)
 }
 
 private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: String, pageId: String?) {
@@ -100,13 +118,18 @@ private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: Stri
     embeddedServer(Netty, port = 8082) {
         weatherMcpServer.configureMcpServer(this)
     }.start(wait = false)
+    val gitMcpServer = GitMcpServer()
+    embeddedServer(Netty, port = 8083) {
+        gitMcpServer.configureMcpServer(this)
+    }.start(wait = false)
     ConsoleUI.printServicesStarted()
 }
 
 private suspend fun connectToLocalMcpServers(toolRegistry: ToolRegistry) {
     val mcpServers = listOf(
         "http://localhost:8081/mcp" to "Notion",
-        "http://localhost:8082/mcp" to "Weather"
+        "http://localhost:8082/mcp" to "Weather",
+        "http://localhost:8083/mcp" to "Git"
     )
     var totalToolsRegistered = 0
     for ((mcpUrl, serverName) in mcpServers) {
@@ -138,7 +161,8 @@ private suspend fun runChatLoop(
     client: OpenRouterClient,
     notionApiKey: String,
     databaseId: String?,
-    embeddingClientForRag: EmbeddingClient?
+    embeddingClientForRag: EmbeddingClient?,
+    ragService: org.example.embedding.RagService?
 ) {
     var taskScheduler: TaskReminderScheduler? = null
     while (true) {
@@ -156,7 +180,17 @@ private suspend fun runChatLoop(
                 agent.clearHistory()
                 ConsoleUI.printHistoryCleared()
             }
-            isHelpCommand(input) -> ConsoleUI.printHelp()
+            isHelpCommand(input) -> {
+                ConsoleUI.printHelp()
+            }
+            isHelpByProjectCommand(input) -> {
+                if (ragService != null && ragService.hasDocuments()) {
+                    handleHelpByProject(agent, ragService, input)
+                } else {
+                    println("❌ RAG сервис не инициализирован или нет проиндексированных документов.")
+                    println("   Запустите индексацию документации или проверьте настройки.")
+                }
+            }
             isToolsCommand(input) -> {
                 OpenRouterConfig.ENABLE_TOOLS = !OpenRouterConfig.ENABLE_TOOLS
                 ConsoleUI.printToolsStatus(OpenRouterConfig.ENABLE_TOOLS)
@@ -191,7 +225,12 @@ private fun isClearCommand(input: String): Boolean =
     input.lowercase() == "/clear"
 
 private fun isHelpCommand(input: String): Boolean =
-    input.lowercase() in listOf("/help", "/?")
+    input.lowercase() == "/?" || input.lowercase() == "/help" && !input.lowercase().contains(" ")
+
+private fun isHelpByProjectCommand(input: String): Boolean =
+    input.lowercase().startsWith("/help_by_project") || 
+    input.lowercase().startsWith("/help-by-project") ||
+    (input.lowercase().startsWith("/help ") && input.length > 6)
 
 private fun isToolsCommand(input: String): Boolean =
     input.lowercase() in listOf("/tools", "/tool")
@@ -246,3 +285,132 @@ private fun clearTasksDatabase() {
     }
 }
 
+/**
+ * Обрабатывает команду /help - поиск по OpenRouterAgent.kt через RAG
+ */
+private suspend fun handleHelpByProject(
+    agent: OpenRouterAgent,
+    ragService: org.example.embedding.RagService,
+    input: String
+) {
+    val question = input
+        .substringAfter("/help_by_project")
+        .substringAfter("/help-by-project")
+        .substringAfter("/help")
+        .trim()
+    
+    if (question.isBlank()) {
+        printHelpUsage()
+        return
+    }
+    
+    // Проверяем запрос на показ конкретных строк
+    val linesRequest = parseLinesRequest(question)
+    if (linesRequest != null) {
+        showCodeLines(linesRequest.first, linesRequest.second)
+        return
+    }
+    
+    println("\n🔍 Поиск в OpenRouterAgent.kt...")
+    
+    val searchResults = ragService.search(question, limit = 2, minSimilarity = 0.3)
+    
+    if (searchResults.isEmpty()) {
+        println("❌ Информация не найдена.")
+        println("💡 Попробуйте: /help processMessage, /help executeAgentLoop, /help системный промпт")
+        return
+    }
+    
+    val bestResult = searchResults.first()
+    val lines = bestResult.metadata["lines"] ?: ""
+    
+    // Формируем краткий контекст
+    val context = searchResults.joinToString("\n\n") { it.text.take(600) }
+    
+    val prompt = """
+        Вопрос: "$question"
+        
+        Код из OpenRouterAgent.kt:
+        $context
+        
+        ИНСТРУКЦИИ:
+        1. Дай КРАТКИЙ ответ (2-4 предложения)
+        2. Если нужен код - покажи только КЛЮЧЕВЫЕ 5-10 строк
+        3. НЕ копируй весь контекст
+        
+        Формат:
+        📝 [краткое описание]
+        
+        ```kotlin
+        [только ключевой фрагмент если нужен]
+        ```
+    """.trimIndent()
+    
+    try {
+        val response = agent.processMessage(prompt)
+        println("\n💬 Ответ:")
+        println(response.response)
+        println("\n📍 Источник: ${bestResult.title} (строки $lines)")
+    } catch (e: Exception) {
+        // Fallback
+        println("\n📖 ${bestResult.title}:")
+        println("${"─".repeat(50)}")
+        println(bestResult.text.take(400))
+        println("...")
+    }
+}
+
+/**
+ * Парсит запрос на показ строк: "строки 100-200"
+ */
+private fun parseLinesRequest(question: String): Pair<Int, Int>? {
+    val pattern = Regex("""строк[иа]?\s+(\d+)\s*[-–]\s*(\d+)""")
+    val match = pattern.find(question.lowercase())
+    return match?.let {
+        Pair(it.groupValues[1].toInt(), it.groupValues[2].toInt())
+    }
+}
+
+/**
+ * Показывает строки из OpenRouterAgent.kt
+ */
+private fun showCodeLines(startLine: Int, endLine: Int) {
+    val file = java.io.File("src/main/kotlin/org/example/agent/OpenRouterAgent.kt")
+    if (!file.exists()) {
+        println("❌ Файл OpenRouterAgent.kt не найден")
+        return
+    }
+    
+    val lines = file.readLines()
+    val actualStart = maxOf(1, startLine)
+    val actualEnd = minOf(endLine, lines.size)
+    
+    println("\n📄 OpenRouterAgent.kt (строки $actualStart-$actualEnd из ${lines.size})")
+    println("${"─".repeat(60)}")
+    
+    for (i in (actualStart - 1) until actualEnd) {
+        println("${(i + 1).toString().padStart(4)}│ ${lines[i]}")
+    }
+    
+    println("${"─".repeat(60)}")
+}
+
+private fun printHelpUsage() {
+    println("""
+        
+    📖 Справка по OpenRouterAgent.kt
+    
+    🔍 Вопросы о коде:
+      • /help для чего нужен OpenRouterAgent
+      • /help что делает processMessage
+      • /help как работает executeAgentLoop
+      • /help парсинг function_call
+      • /help системный промпт
+      • /help сжатие истории
+      
+    📂 Просмотр кода:
+      • /help строки 1-50
+      • /help строки 100-200
+      
+    """.trimIndent())
+}
