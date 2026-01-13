@@ -414,3 +414,20 @@ private fun printHelpUsage() {
       
     """.trimIndent())
 }
+
+/**
+ * Утилита для валидации конфигурации.
+ * TODO: добавить проверку на пустые значения
+ */
+fun validateConfig(config: Map<String, String>): Boolean {
+    // Потенциальная проблема: не проверяем на null
+    val apiKey = config["API_KEY"]
+    val baseUrl = config["BASE_URL"]
+    
+    // Логическая проблема: проверяем только apiKey, но возвращаем true даже если baseUrl пустой
+    if (apiKey != null && apiKey.isNotEmpty()) {
+        println("Config validated: API_KEY=${apiKey.take(10)}...")
+        return true
+    }
+    return false
+}

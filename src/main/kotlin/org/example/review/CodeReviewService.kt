@@ -9,8 +9,6 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
-import org.example.embedding.DocumentIndexStorage
-import org.example.embedding.EmbeddingClient
 import org.example.embedding.RagService
 
 /**
