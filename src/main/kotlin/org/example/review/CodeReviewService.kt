@@ -176,7 +176,7 @@ Now review this PR and respond with JSON only.
     
     private suspend fun callLLM(systemPrompt: String, userPrompt: String): String {
         val requestBody = buildJsonObject {
-            put("model", "anthropic/claude-sonnet-4")  // Используем Claude Sonnet для баланса качества/скорости
+            put("model", "z-ai/glm-4.6v")  // GLM-4.6V для code review
             put("max_tokens", 4096)
             put("temperature", 0.1)
             put("messages", buildJsonArray {
