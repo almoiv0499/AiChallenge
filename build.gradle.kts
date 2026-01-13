@@ -87,3 +87,16 @@ tasks.register<JavaExec>("runCodeReviewTest") {
     mainClass.set("org.example.review.CodeReviewTestKt")
     classpath = sourceSets["main"].runtimeClasspath
 }
+
+// Задача для запуска AI Code Review в CI
+tasks.register<JavaExec>("runCodeReview") {
+    group = "ci"
+    description = "Запускает AI Code Review для PR (используется в GitHub Actions)"
+    mainClass.set("org.example.review.CodeReviewRunnerKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    
+    // Передаём аргументы из командной строки
+    if (project.hasProperty("args")) {
+        args = (project.property("args") as String).split(" ")
+    }
+}
