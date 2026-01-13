@@ -71,3 +71,19 @@ tasks.register<JavaExec>("runSearchTest") {
     mainClass.set("org.example.embedding.SearchTestMainKt")
     classpath = sourceSets["main"].runtimeClasspath
 }
+
+// Задача для тестирования Git MCP Server
+tasks.register<JavaExec>("runGitMcpTest") {
+    group = "application"
+    description = "Тестирует Git MCP Server для Code Review Pipeline"
+    mainClass.set("org.example.mcp.server.GitMcpServerTestKt")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
+// Задача для тестирования Code Review Pipeline
+tasks.register<JavaExec>("runCodeReviewTest") {
+    group = "application"
+    description = "Тестирует полный pipeline Code Review с LLM"
+    mainClass.set("org.example.review.CodeReviewTestKt")
+    classpath = sourceSets["main"].runtimeClasspath
+}
