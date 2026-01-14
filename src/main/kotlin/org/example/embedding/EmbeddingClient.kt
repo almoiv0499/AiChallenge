@@ -21,6 +21,7 @@ class EmbeddingClient(private val apiKey: String) {
         ignoreUnknownKeys = true
         encodeDefaults = true
         explicitNulls = false
+        isLenient = true
     }
     
     private val client = HttpClient(CIO) {
@@ -52,14 +53,36 @@ class EmbeddingClient(private val apiKey: String) {
             ))
         }
         
+        val responseText = response.bodyAsText()
+        
         if (!response.status.isSuccess()) {
-            val errorBody = response.bodyAsText()
-            throw RuntimeException("Ошибка генерации эмбеддинга: ${response.status} - $errorBody")
+            throw RuntimeException("Ошибка генерации эмбеддинга: ${response.status} - $responseText")
         }
         
-        val result: EmbeddingResponse = response.body()
-        if (result.data.isEmpty()) {
-            throw RuntimeException("Пустой ответ от API эмбеддингов")
+        // Попробуем распарсить ответ
+        val result = try {
+            json.decodeFromString<EmbeddingResponse>(responseText)
+        } catch (e: Exception) {
+            // Попробуем распарсить как ошибку
+            val errorResponse = try {
+                json.decodeFromString<EmbeddingErrorResponse>(responseText)
+            } catch (e2: Exception) {
+                null
+            }
+            
+            if (errorResponse?.error != null) {
+                throw RuntimeException("API Error: ${errorResponse.error.message}")
+            }
+            
+            throw RuntimeException("Ошибка парсинга ответа эмбеддингов: ${e.message}. Ответ: ${responseText.take(500)}")
+        }
+        
+        if (result.data.isNullOrEmpty()) {
+            // Проверяем, нет ли ошибки в ответе
+            if (result.error != null) {
+                throw RuntimeException("API Error: ${result.error.message}")
+            }
+            throw RuntimeException("Пустой ответ от API эмбеддингов. Ответ: ${responseText.take(500)}")
         }
         
         // Преобразуем List<Double> в FloatArray
@@ -91,13 +114,26 @@ private data class EmbeddingRequest(
 
 @Serializable
 private data class EmbeddingResponse(
-    val data: List<EmbeddingData>,
-    val model: String? = null
+    val data: List<EmbeddingData>? = null,
+    val model: String? = null,
+    val error: EmbeddingError? = null
 )
 
 @Serializable
 private data class EmbeddingData(
     val embedding: List<Double>,
-    val index: Int? = null
+    val index: Int? = null,
+    val `object`: String? = null
 )
 
+@Serializable
+private data class EmbeddingError(
+    val message: String? = null,
+    val type: String? = null,
+    val code: String? = null
+)
+
+@Serializable
+private data class EmbeddingErrorResponse(
+    val error: EmbeddingError? = null
+)

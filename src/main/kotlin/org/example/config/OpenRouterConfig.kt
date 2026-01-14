@@ -2,7 +2,7 @@ package org.example.config
 
 object OpenRouterConfig {
     const val API_URL = "https://openrouter.ai/api/v1/responses"
-    const val DEFAULT_MODEL = Models.DEEPSEEK
+    const val DEFAULT_MODEL = Models.OPEN_AI
     const val MAX_AGENT_ITERATIONS = 3
     const val MAX_TOKENS = Double.MAX_VALUE
     var ENABLE_TOOLS = true

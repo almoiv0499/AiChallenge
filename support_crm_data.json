@@ -1,0 +1,191 @@
+{
+    "users": [
+        {
+            "id": "user_001",
+            "email": "ivan@example.com",
+            "name": "Иван Петров",
+            "plan": "pro",
+            "created_at": 1765804847617,
+            "last_login": 1768310447617,
+            "tags": [
+                "VIP",
+                "frequent_issues"
+            ],
+            "metadata": {}
+        },
+        {
+            "id": "user_002",
+            "email": "anna@example.com",
+            "name": "Анна Сидорова",
+            "plan": "enterprise",
+            "created_at": 1763212847617,
+            "last_login": 1768224047617,
+            "tags": [
+                "VIP"
+            ],
+            "metadata": {}
+        },
+        {
+            "id": "user_003",
+            "email": "test@example.com",
+            "name": "Тестовый Пользователь",
+            "plan": "free",
+            "created_at": 1767792047617,
+            "last_login": 1768396847617,
+            "tags": [
+                "new_user"
+            ],
+            "metadata": {}
+        },
+        {
+            "id": "user_004",
+            "email": "dmitry@example.com",
+            "name": "Дмитрий Козлов",
+            "plan": "pro",
+            "created_at": 1760620847617,
+            "last_login": 1767964847617,
+            "tags": [],
+            "metadata": {}
+        }
+    ],
+    "tickets": [
+        {
+            "id": "TKT-001",
+            "user_id": "user_001",
+            "subject": "Не работает авторизация через Google",
+            "description": "При попытке войти через Google появляется ошибка 'Invalid OAuth token'. Пробовал разные браузеры - результат тот же.",
+            "status": "open",
+            "priority": "high",
+            "category": "authorization",
+            "created_at": 1768224047617,
+            "updated_at": 1768399277072,
+            "resolved_at": null,
+            "messages": [],
+            "tags": [
+                "oauth",
+                "google"
+            ],
+            "metadata": {
+                "browser": "Chrome 120",
+                "os": "Windows 11",
+                "error_code": "OAUTH_INVALID_TOKEN"
+            }
+        },
+        {
+            "id": "TKT-002",
+            "user_id": "user_002",
+            "subject": "Не прошла оплата подписки",
+            "description": "Пытаюсь продлить Enterprise подписку, но оплата не проходит. Карта точно рабочая.",
+            "status": "in_progress",
+            "priority": "critical",
+            "category": "payment",
+            "created_at": 1768310447617,
+            "updated_at": 1768399366136,
+            "resolved_at": null,
+            "messages": [
+                {
+                    "id": "msg_bot_1768399366136",
+                    "ticket_id": "TKT-002",
+                    "sender_type": "bot",
+                    "sender_id": "support_assistant",
+                    "content": "Здравствуйте, Анна!\n\nЯ вижу, что у вас возникла проблема с оплатой подписки на тарифный план Enterprise. Ошибка PAYMENT_DECLINED указывает на то, что платеж был отклонён платёжной системой. \n\nЧтобы решить эту проблему, пожалуйста, выполните следующие шаги:\n\n1. Проверьте баланс вашей карты, чтобы убедиться, что на ней достаточно средств для оплаты.\n2. Свяжитесь с вашим банком и уточните:\n   - Не заблокирована ли ваша карта для интернет-платежей.\n   - Нет ли ограничений на платежи за рубеж.\n3. Попробуйте использовать другую карту для оплаты.\n4. Если возможно, воспользуйтесь альтернативными способами оплаты, такими как PayPal или криптовалюта.\n\nЕсли после выполнения всех этих шагов проблема не решится, пожалуйста, не стесняйтесь обратиться в нашу службу поддержки для дальнейшей помощи. Мы всегда готовы помочь вам!\n\nС уважением,  \nВаш ассистент службы поддержки",
+                    "created_at": 1768399366136,
+                    "attachments": []
+                }
+            ],
+            "tags": [
+                "urgent",
+                "enterprise"
+            ],
+            "metadata": {
+                "payment_method": "Visa",
+                "error_code": "PAYMENT_DECLINED",
+                "amount": "9999 RUB"
+            }
+        },
+        {
+            "id": "TKT-003",
+            "user_id": "user_003",
+            "subject": "Приложение вылетает при открытии",
+            "description": "После обновления приложение крашится сразу после запуска на Android.",
+            "status": "waiting_for_customer",
+            "priority": "medium",
+            "category": "technical",
+            "created_at": 1768137647617,
+            "updated_at": 1768310447617,
+            "resolved_at": null,
+            "messages": [],
+            "tags": [],
+            "metadata": {
+                "device": "Samsung Galaxy S21",
+                "os_version": "Android 14",
+                "app_version": "2.5.0"
+            }
+        },
+        {
+            "id": "TKT-004",
+            "user_id": "user_001",
+            "subject": "Забыл пароль, не приходит письмо для сброса",
+            "description": "Запрашиваю сброс пароля, но письмо не приходит уже 2 часа.",
+            "status": "resolved",
+            "priority": "medium",
+            "category": "authorization",
+            "created_at": 1767532847617,
+            "updated_at": 1767619247617,
+            "resolved_at": 1767619247617,
+            "messages": [],
+            "tags": [],
+            "metadata": {}
+        },
+        {
+            "id": "TKT-005",
+            "user_id": "user_004",
+            "subject": "Добавьте двухфакторную аутентификацию",
+            "description": "Хотелось бы иметь возможность включить 2FA для дополнительной безопасности.",
+            "status": "open",
+            "priority": "low",
+            "category": "feature_request",
+            "created_at": 1767964847617,
+            "updated_at": 1767964847617,
+            "resolved_at": null,
+            "messages": [],
+            "tags": [
+                "feature",
+                "security"
+            ],
+            "metadata": {}
+        },
+        {
+            "id": "TKT-006",
+            "user_id": "user_002",
+            "subject": "Ошибка синхронизации данных между устройствами",
+            "description": "Данные, введенные на телефоне, не появляются на десктопе и наоборот.",
+            "status": "in_progress",
+            "priority": "high",
+            "category": "bug_report",
+            "created_at": 1768051247617,
+            "updated_at": 1768399404942,
+            "resolved_at": null,
+            "messages": [
+                {
+                    "id": "msg_bot_1768399404942",
+                    "ticket_id": "TKT-006",
+                    "sender_type": "bot",
+                    "sender_id": "support_assistant",
+                    "content": "Здравствуйте, Анна!\n\nЯ понимаю, что у вас возникла проблема с синхронизацией данных между вашим iPhone 15 и MacBook Pro. Данные, введенные на одном устройстве, не отображаются на другом. Давайте попробуем решить эту проблему вместе.\n\nПожалуйста, выполните следующие шаги:\n\n1. Проверьте подключение к интернету на обоих устройствах, чтобы убедиться, что они имеют стабильное соединение.\n2. Убедитесь, что вы вошли в один и тот же аккаунт на обоих устройствах.\n3. Попробуйте выйти из аккаунта на обоих устройствах и войти снова.\n4. Принудительно запустите синхронизацию:\n   - На мобильном устройстве перейдите в Настройки → Синхронизация → Синхронизировать сейчас.\n5. Проверьте, что версии приложений на обоих устройствах совместимы. Убедитесь, что версии приложений отличаются не более чем на 1 минорный релиз. Вы используете версии 2.5.0 на iPhone и 2.4.8 на MacBook Pro, что может быть причиной конфликта.\n\nЕсли после выполнения всех этих шагов проблема не решится, пожалуйста, дайте знать, и мы сможем рассмотреть дальнейшие действия.\n\nС уважением,  \nВаш ассистент службы поддержки",
+                    "created_at": 1768399404942,
+                    "attachments": []
+                }
+            ],
+            "tags": [
+                "sync",
+                "critical_bug"
+            ],
+            "metadata": {
+                "devices": "iPhone 15, MacBook Pro",
+                "app_version_mobile": "2.5.0",
+                "app_version_desktop": "2.4.8"
+            }
+        }
+    ]
+}

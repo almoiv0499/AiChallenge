@@ -100,3 +100,12 @@ tasks.register<JavaExec>("runCodeReview") {
         args = (project.property("args") as String).split(" ")
     }
 }
+
+// Задача для запуска сервиса поддержки
+tasks.register<JavaExec>("runSupportService") {
+    group = "application"
+    description = "Запускает сервис поддержки с RAG + CRM интеграцией"
+    mainClass.set("org.example.support.SupportMainKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    standardInput = System.`in`
+}
