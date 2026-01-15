@@ -26,6 +26,15 @@ import org.example.embedding.EmbeddingClient
 import org.example.embedding.DocumentIndexStorage
 import org.example.embedding.RagService
 import org.example.embedding.ProjectDocsIndexer
+import org.example.project.ProjectTaskStorage
+import org.example.project.ProjectTaskService
+import org.example.project.ProjectTaskApiServer
+import org.example.project.ProjectTaskClient
+import org.example.project.CreateProjectTaskTool
+import org.example.project.GetProjectTasksTool
+import org.example.project.UpdateProjectTaskTool
+import org.example.project.GetProjectStatusTool
+import org.example.project.GetTeamCapacityTool
 
 fun main() = runBlocking {
     ConsoleUI.printWelcome()
@@ -43,6 +52,19 @@ fun main() = runBlocking {
     val client = OpenRouterClient(apiKey)
     val toolRegistry = ToolRegistry.createDefault()
     connectToLocalMcpServers(toolRegistry)
+    
+    // Register Project Task API tools
+    try {
+        val projectTaskClient = ProjectTaskClient()
+        toolRegistry.register(CreateProjectTaskTool(projectTaskClient))
+        toolRegistry.register(GetProjectTasksTool(projectTaskClient))
+        toolRegistry.register(UpdateProjectTaskTool(projectTaskClient))
+        toolRegistry.register(GetProjectStatusTool(projectTaskClient))
+        toolRegistry.register(GetTeamCapacityTool(projectTaskClient))
+        println("✅ Project Task API tools registered (5 tools)")
+    } catch (e: Exception) {
+        println("⚠️ Failed to register Project Task API tools: ${e.message}")
+    }
     
     // Initialize device search service if Android SDK is configured
     val deviceSearchService = DeviceSearchService.create()
@@ -122,6 +144,16 @@ private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: Stri
     embeddedServer(Netty, port = 8083) {
         gitMcpServer.configureMcpServer(this)
     }.start(wait = false)
+    
+    // Project Task API Server
+    val projectTaskStorage = ProjectTaskStorage()
+    val projectTaskService = ProjectTaskService(projectTaskStorage)
+    val projectTaskApiServer = ProjectTaskApiServer(projectTaskService)
+    embeddedServer(Netty, port = 8084) {
+        projectTaskApiServer.configureApiServer(this)
+    }.start(wait = false)
+    println("✅ Project Task API Server: http://localhost:8084")
+    
     ConsoleUI.printServicesStarted()
 }
 

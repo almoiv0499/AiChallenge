@@ -32,6 +32,7 @@ class OpenRouterAgent(
     init {
         addSystemPrompt()
         loadSavedSummary()
+        addProjectContextToSystemPrompt()
         ConsoleUI.printAgentInitialized(model, toolRegistry.getAllTools().size)
     }
 
@@ -50,7 +51,25 @@ class OpenRouterAgent(
             }
         }
         
-        addUserMessage(userMessage)
+        // Get RAG context if query is related to project tasks
+        val enrichedMessage = if (isProjectTaskRelatedQuery(userMessage) && ragService != null) {
+            val context = getProjectContext(userMessage)
+            if (context.isNotEmpty()) {
+                println("📚 Найден контекст проекта через RAG")
+                """
+                    Контекст проекта (из документации):
+                    $context
+                    
+                    Вопрос пользователя: $userMessage
+                """.trimIndent()
+            } else {
+                userMessage
+            }
+        } else {
+            userMessage
+        }
+        
+        addUserMessage(enrichedMessage)
         return executeAgentLoop()
     }
     
@@ -109,12 +128,58 @@ class OpenRouterAgent(
         
         return null
     }
+    
+    /**
+     * Определяет, связан ли запрос с задачами проекта
+     */
+    private fun isProjectTaskRelatedQuery(message: String): Boolean {
+        val keywords = listOf(
+            "задача", "задачи", "проект", "статус", "приоритет",
+            "дедлайн", "релиз", "milestone", "критичн", "блокер",
+            "блокирован", "исполнитель", "assignee", "epic",
+            "просрочен", "overdue", "команда", "team", "capacity",
+            "загрузка", "workload", "выполнен", "done", "todo"
+        )
+        val lowerMessage = message.lowercase()
+        return keywords.any { lowerMessage.contains(it, ignoreCase = true) }
+    }
+    
+    /**
+     * Получает контекст проекта через RAG
+     */
+    private suspend fun getProjectContext(query: String): String {
+        if (ragService == null) return ""
+        
+        return try {
+            val results = ragService.search(query, limit = 3, minSimilarity = 0.5)
+            if (results.isEmpty()) {
+                // Попробуем более общий поиск
+                val generalResults = ragService.search("проект статус дедлайн релиз", limit = 2, minSimilarity = 0.3)
+                if (generalResults.isEmpty()) {
+                    return ""
+                }
+                generalResults.joinToString("\n\n") { result ->
+                    val source = result.metadata["title"] ?: result.metadata["file"] ?: "Документация проекта"
+                    "$source:\n${result.text.take(500)}"
+                }
+            } else {
+                results.joinToString("\n\n") { result ->
+                    val source = result.metadata["title"] ?: result.metadata["file"] ?: "Документация проекта"
+                    "$source:\n${result.text.take(500)}"
+                }
+            }
+        } catch (e: Exception) {
+            println("⚠️ Ошибка при получении RAG контекста: ${e.message}")
+            ""
+        }
+    }
 
     fun clearHistory() {
         conversationHistory.clear()
         userMessageCount = 0
         historyStorage.clearAllSummaries()
         addSystemPrompt()
+        addProjectContextToSystemPrompt()
         ConsoleUI.printHistoryClearedLog()
     }
 
@@ -545,6 +610,49 @@ class OpenRouterAgent(
             userMessageCount = 0
         } else {
             ConsoleUI.printNoSavedSummary()
+        }
+    }
+    
+    /**
+     * Добавляет общий контекст проекта в системный промпт через RAG
+     */
+    private fun addProjectContextToSystemPrompt() {
+        if (ragService == null) return
+        
+        // Используем корутины для асинхронного поиска
+        kotlinx.coroutines.runBlocking {
+            try {
+                val contextQueries = listOf(
+                    "проект статус этап roadmap",
+                    "дедлайн релиз milestone",
+                    "команда роли участники"
+                )
+                
+                val contextParts = mutableListOf<String>()
+                for (query in contextQueries) {
+                    val results = ragService.search(query, limit = 1, minSimilarity = 0.4)
+                    if (results.isNotEmpty()) {
+                        val result = results.first()
+                        contextParts.add(result.text.take(300))
+                    }
+                }
+                
+                if (contextParts.isNotEmpty()) {
+                    val projectContext = """
+                        Контекст проекта (из документации):
+                        ${contextParts.joinToString("\n\n")}
+                    """.trimIndent()
+                    
+                    val contextMessage = OpenRouterInputMessage(
+                        role = "system",
+                        content = listOf(OpenRouterInputContentItem(type = "input_text", text = projectContext))
+                    )
+                    conversationHistory.add(json.encodeToJsonElement(OpenRouterInputMessage.serializer(), contextMessage))
+                    println("📚 Контекст проекта добавлен в системный промпт")
+                }
+            } catch (e: Exception) {
+                println("⚠️ Не удалось добавить контекст проекта: ${e.message}")
+            }
         }
     }
 
