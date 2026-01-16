@@ -35,15 +35,29 @@ jobs:
           build-tools: 34.0.0
           targets: android-34
 
-      - name: Configure AndroidX properties
+      - name: Configure Gradle properties
         run: |
-          # Убеждаемся, что gradle.properties содержит настройки AndroidX
+          # Убеждаемся, что gradle.properties содержит все необходимые настройки
           if ! grep -q "android.useAndroidX=true" gradle.properties 2>/dev/null; then
             echo "" >> gradle.properties
             echo "# AndroidX migration" >> gradle.properties
             echo "android.useAndroidX=true" >> gradle.properties
             echo "android.enableJetifier=true" >> gradle.properties
           fi
+          
+          # Убеждаемся, что настройки памяти установлены (важно для CI)
+          if ! grep -q "org.gradle.jvmargs" gradle.properties 2>/dev/null; then
+            echo "" >> gradle.properties
+            echo "# Memory settings for Gradle" >> gradle.properties
+            echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 -XX:+UseG1GC" >> gradle.properties
+          fi
+          
+          if ! grep -q "org.gradle.parallel=true" gradle.properties 2>/dev/null; then
+            echo "org.gradle.parallel=true" >> gradle.properties
+            echo "org.gradle.caching=true" >> gradle.properties
+            echo "org.gradle.configureondemand=true" >> gradle.properties
+          fi
+          
           echo "=== gradle.properties content ==="
           cat gradle.properties
           echo "=================================="
@@ -80,13 +94,19 @@ jobs:
           echo "All required resources found"
           echo "==================================="
           
-          # Также передаем через параметры командной строки на случай, если переменные окружения не работают
+          # Останавливаем все Gradle daemon перед сборкой (освобождаем память)
+          ./gradlew --stop || true
+          
+          # Запускаем сборку с оптимизированными настройками
+          # Используем --no-daemon для CI, чтобы избежать проблем с памятью
+          # --max-workers ограничивает параллелизм и снижает потребление памяти
           ./gradlew assembleDebug \
             -Pandroid.useAndroidX=true \
             -Pandroid.enableJetifier=true \
             --no-daemon \
+            --max-workers=2 \
             --stacktrace \
-            --info
+            --warn
 
       - name: Find APK files
         id: find_apk
