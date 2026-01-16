@@ -6,12 +6,10 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.*
 import org.example.config.AppConfig
 import org.example.embedding.DocumentIndexStorage
 import org.example.embedding.EmbeddingClient
 import org.example.embedding.RagService
-import org.example.embedding.DocumentIndexer
 import java.io.File
 
 /**
