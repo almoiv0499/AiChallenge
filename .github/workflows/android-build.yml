@@ -1,0 +1,103 @@
+name: Android Build & Publish APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+  workflow_dispatch:  # Позволяет запускать вручную из GitHub UI
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build APK (assembleDebug)
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Find APK files
+        id: find_apk
+        run: |
+          APK_PATH=$(find . -name "*.apk" -path "*/build/outputs/apk/debug/*" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "APK not found in standard location, searching..."
+            APK_PATH=$(find . -name "*.apk" | head -n 1)
+          fi
+          
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: APK file not found!"
+            exit 1
+          fi
+          
+          echo "APK found at: $APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          
+          # Get APK filename
+          APK_NAME=$(basename "$APK_PATH")
+          echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create APK archive (ZIP)
+        id: create_zip
+        run: |
+          APK_DIR=$(dirname "${{ steps.find_apk.outputs.apk_path }}")
+          ZIP_PATH="$GITHUB_WORKSPACE/app-debug.zip"
+          cd "$APK_DIR"
+          zip -r "$ZIP_PATH" "${{ steps.find_apk.outputs.apk_name }}"
+          echo "APK archived as $ZIP_PATH"
+          echo "zip_path=$ZIP_PATH" >> $GITHUB_OUTPUT
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: |
+            ${{ steps.find_apk.outputs.apk_path }}
+            ${{ steps.create_zip.outputs.zip_path }}
+          retention-days: 90
+
+      - name: Build Summary
+        run: |
+          echo "## 📦 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Build Status:** Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📱 **APK Location:** \`${{ steps.find_apk.outputs.apk_path }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📥 **Download:** APK and ZIP архив доступны в разделе Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Инструкции по скачиванию:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Перейдите в раздел **Summary** данного workflow run" >> $GITHUB_STEP_SUMMARY
+          echo "2. Прокрутите вниз до секции **Artifacts**" >> $GITHUB_STEP_SUMMARY
+          echo "3. Нажмите на **android-debug-apk** чтобы скачать архив" >> $GITHUB_STEP_SUMMARY
