@@ -31,6 +31,19 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Configure AndroidX properties
+        run: |
+          # Убеждаемся, что gradle.properties содержит настройки AndroidX
+          if ! grep -q "android.useAndroidX=true" gradle.properties 2>/dev/null; then
+            echo "" >> gradle.properties
+            echo "# AndroidX migration" >> gradle.properties
+            echo "android.useAndroidX=true" >> gradle.properties
+            echo "android.enableJetifier=true" >> gradle.properties
+          fi
+          echo "=== gradle.properties content ==="
+          cat gradle.properties
+          echo "=================================="
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -45,7 +58,17 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Build APK (assembleDebug)
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          # Явно задаем переменные для AndroidX через переменные окружения Gradle
+          ORG_GRADLE_PROJECT_android_useAndroidX: "true"
+          ORG_GRADLE_PROJECT_android_enableJetifier: "true"
+        run: |
+          # Также передаем через параметры командной строки на случай, если переменные окружения не работают
+          ./gradlew assembleDebug \
+            -Pandroid.useAndroidX=true \
+            -Pandroid.enableJetifier=true \
+            --no-daemon \
+            --stacktrace
 
       - name: Find APK files
         id: find_apk
