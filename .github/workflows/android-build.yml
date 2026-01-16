@@ -30,6 +30,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+          targets: android-34
 
       - name: Configure AndroidX properties
         run: |
@@ -63,12 +67,26 @@ jobs:
           ORG_GRADLE_PROJECT_android_useAndroidX: "true"
           ORG_GRADLE_PROJECT_android_enableJetifier: "true"
         run: |
+          # Проверяем наличие необходимых ресурсов
+          echo "=== Checking required resources ==="
+          if [ ! -f "android/app/src/main/res/xml/backup_rules.xml" ]; then
+            echo "ERROR: backup_rules.xml not found!"
+            exit 1
+          fi
+          if [ ! -f "android/app/src/main/res/xml/data_extraction_rules.xml" ]; then
+            echo "ERROR: data_extraction_rules.xml not found!"
+            exit 1
+          fi
+          echo "All required resources found"
+          echo "==================================="
+          
           # Также передаем через параметры командной строки на случай, если переменные окружения не работают
           ./gradlew assembleDebug \
             -Pandroid.useAndroidX=true \
             -Pandroid.enableJetifier=true \
             --no-daemon \
-            --stacktrace
+            --stacktrace \
+            --info
 
       - name: Find APK files
         id: find_apk
