@@ -6,7 +6,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
 
-class HistoryStorage(private val dbPath: String = "conversation_history.db") {
+class HistoryStorage(private val dbPath: String = DatabasePathHelper.getDbPath("conversation_history.db")) {
     private val dbFile = File(dbPath)
     
     init {

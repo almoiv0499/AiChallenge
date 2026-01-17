@@ -31,7 +31,7 @@ fun main() = runBlocking {
     
     // RAG компоненты (используется для совместимости, основной поиск - текстовый)
     val embeddingClient = EmbeddingClient(apiKey)
-    val storage = DocumentIndexStorage("support_docs_index.db")
+    val storage = DocumentIndexStorage(org.example.storage.DatabasePathHelper.getDbPath("support_docs_index.db"))
     val indexer = DocumentIndexer(embeddingClient, storage)
     val ragService = RagService(embeddingClient, storage, indexer)
     

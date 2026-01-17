@@ -1,6 +1,7 @@
 package org.example.storage
 
 import org.example.reminder.Task
+import org.example.storage.DatabasePathHelper
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
@@ -9,7 +10,7 @@ import java.sql.SQLException
  * Storage layer for persisting task state in SQLite database.
  * Assumes the database layer already exists and is usable.
  */
-class TaskStorage(private val dbPath: String = "tasks.db") {
+class TaskStorage(private val dbPath: String = DatabasePathHelper.getDbPath("tasks.db")) {
     init {
         loadDriver()
         initializeDatabase()

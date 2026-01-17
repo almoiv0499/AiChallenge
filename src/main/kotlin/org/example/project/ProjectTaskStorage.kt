@@ -1,5 +1,6 @@
 package org.example.project
 
+import org.example.storage.DatabasePathHelper
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
@@ -9,7 +10,7 @@ import java.time.format.DateTimeFormatter
 /**
  * Хранилище задач проекта в SQLite
  */
-class ProjectTaskStorage(private val dbPath: String = "project_tasks.db") {
+class ProjectTaskStorage(private val dbPath: String = DatabasePathHelper.getDbPath("project_tasks.db")) {
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
     
     init {

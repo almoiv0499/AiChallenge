@@ -26,13 +26,20 @@ COPY --from=build /app/build/libs/*.jar app.jar
 # Копирование VERSION файла для endpoints
 COPY VERSION VERSION
 
+# Создание директории для данных с правами записи (до создания пользователя)
+RUN mkdir -p /app/data /tmp/data && chmod 777 /app/data /tmp/data
+
 # Создание пользователя для безопасности
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Даем пользователю права на запись в директории данных и /tmp
+RUN chown -R appuser:appgroup /app/data /tmp/data
 USER appuser
 
 # Переменные окружения
 ENV PORT=8080
 ENV JAVA_OPTS="-Xmx512m -Xms256m"
+# Переменная окружения для пути к базам данных (использует /tmp по умолчанию)
+ENV DB_PATH=/tmp
 
 # Экспонирование порта
 EXPOSE $PORT

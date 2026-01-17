@@ -13,7 +13,7 @@ import kotlin.math.sqrt
  * Хранилище для индекса документов с эмбеддингами в SQLite.
  * Поддерживает сохранение и поиск по векторному сходству (cosine similarity).
  */
-class DocumentIndexStorage(private val dbPath: String = "document_index.db") {
+class DocumentIndexStorage(private val dbPath: String = org.example.storage.DatabasePathHelper.getDbPath("document_index.db")) {
     init {
         loadDriver()
         initializeDatabase()
