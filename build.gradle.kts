@@ -48,6 +48,19 @@ application {
     mainClass.set("org.example.MainKt")
 }
 
+// Настройка JAR задачи для создания executable JAR с манифестом
+tasks.jar {
+    manifest {
+        attributes(
+            "Main-Class" to "org.example.MainKt"
+        )
+    }
+    
+    // Создаем fat JAR со всеми зависимостями
+    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 tasks.named<JavaExec>("run") {
     standardInput = System.`in`
 }

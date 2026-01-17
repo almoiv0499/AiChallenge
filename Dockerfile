@@ -20,7 +20,7 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
-# Копирование собранного JAR файла
+# Копирование собранного JAR файла с манифестом
 COPY --from=build /app/build/libs/*.jar app.jar
 
 # Копирование VERSION файла для endpoints
