@@ -199,6 +199,42 @@ class ProjectTaskApiServer(
                     put("service", "Project Task API")
                 })
             }
+            
+            // Deployment test endpoint
+            get("/api/deployment/test") {
+                val version = try {
+                    java.io.File("VERSION").readText().trim()
+                } catch (e: Exception) {
+                    "unknown"
+                }
+                
+                call.respond(buildJsonObject {
+                    put("status", "success")
+                    put("message", "Deployment test endpoint is working!")
+                    put("version", version)
+                    put("timestamp", System.currentTimeMillis())
+                    put("environment", System.getenv("RAILWAY_ENVIRONMENT") ?: "local")
+                    put("deployment", buildJsonObject {
+                        put("platform", "Railway")
+                        put("status", "active")
+                    })
+                })
+            }
+            
+            // Version info endpoint
+            get("/api/version") {
+                val version = try {
+                    java.io.File("VERSION").readText().trim()
+                } catch (e: Exception) {
+                    "1.0.0"
+                }
+                
+                call.respond(buildJsonObject {
+                    put("version", version)
+                    put("application", "OpenRouter Agent")
+                    put("deployment", "Railway")
+                })
+            }
         }
     }
 }

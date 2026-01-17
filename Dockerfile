@@ -23,6 +23,9 @@ WORKDIR /app
 # Копирование собранного JAR файла
 COPY --from=build /app/build/libs/*.jar app.jar
 
+# Копирование VERSION файла для endpoints
+COPY VERSION VERSION
+
 # Создание пользователя для безопасности
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser

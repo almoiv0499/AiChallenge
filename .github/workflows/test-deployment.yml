@@ -1,0 +1,69 @@
+name: Test Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_url:
+        description: 'Deployment URL to test'
+        required: true
+        default: 'http://localhost:8080'
+  schedule:
+    # Запуск каждый день в 2:00 UTC для проверки работоспособности
+    - cron: '0 2 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Test Health Endpoint
+        run: |
+          DEPLOYMENT_URL="${{ github.event.inputs.deployment_url || 'http://localhost:8080' }}"
+          
+          echo "🧪 Тестирование деплоя на $DEPLOYMENT_URL"
+          
+          # Проверка health endpoint
+          echo "Проверка Health Check..."
+          response=$(curl -s -w "\n%{http_code}" "${DEPLOYMENT_URL}/api/health" || echo -e "\n000")
+          http_code=$(echo "$response" | tail -n1)
+          
+          if [ "$http_code" = "200" ]; then
+            echo "✅ Health Check: OK"
+          else
+            echo "❌ Health Check: FAILED (HTTP $http_code)"
+            exit 1
+          fi
+          
+          # Проверка deployment test endpoint
+          echo "Проверка Deployment Test..."
+          response=$(curl -s -w "\n%{http_code}" "${DEPLOYMENT_URL}/api/deployment/test" || echo -e "\n000")
+          http_code=$(echo "$response" | tail -n1)
+          
+          if [ "$http_code" = "200" ]; then
+            echo "✅ Deployment Test: OK"
+            echo "Ответ: $(echo "$response" | sed '$d')"
+          else
+            echo "❌ Deployment Test: FAILED (HTTP $http_code)"
+            exit 1
+          fi
+          
+          # Проверка version endpoint
+          echo "Проверка Version Info..."
+          response=$(curl -s -w "\n%{http_code}" "${DEPLOYMENT_URL}/api/version" || echo -e "\n000")
+          http_code=$(echo "$response" | tail -n1)
+          
+          if [ "$http_code" = "200" ]; then
+            echo "✅ Version Info: OK"
+            echo "Ответ: $(echo "$response" | sed '$d')"
+          else
+            echo "❌ Version Info: FAILED (HTTP $http_code)"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ Все проверки пройдены успешно!"
+          
+        continue-on-error: true
