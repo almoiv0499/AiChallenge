@@ -110,60 +110,51 @@ jobs:
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
-          # Railway CLI использует RAILWAY_TOKEN из переменной окружения
           # Проверяем, что токен установлен
           if [ -z "$RAILWAY_TOKEN" ]; then
             echo "❌ Error: RAILWAY_TOKEN is not set"
             exit 1
           fi
           
-          echo "Authenticating with Railway..."
-          # Railway CLI автоматически использует RAILWAY_TOKEN из env
-          export RAILWAY_TOKEN=$RAILWAY_TOKEN
+          echo "Using Railway API to set variables and trigger deployment..."
           
-          echo "Linking to project $RAILWAY_PROJECT_ID..."
-          railway link --project $RAILWAY_PROJECT_ID
-          
-          # Установка переменных окружения перед деплоем
+          # Установка переменных окружения через Railway API
           echo ""
-          echo "Setting environment variables..."
+          echo "Setting environment variables via Railway API..."
           
           if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
             echo "Setting OPENROUTER_API_KEY..."
-            railway variables set OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" --service $RAILWAY_SERVICE_ID
-            if [ $? -eq 0 ]; then
-              echo "✅ OPENROUTER_API_KEY set successfully"
-            else
-              echo "❌ Failed to set OPENROUTER_API_KEY"
-            fi
+            curl -X POST \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"OPENROUTER_API_KEY\",\"value\":\"${{ secrets.OPENROUTER_API_KEY }}\",\"serviceId\":\"$RAILWAY_SERVICE_ID\"}" \
+              "https://api.railway.app/v1/variables" && echo "✅ OPENROUTER_API_KEY set" || echo "❌ Failed to set OPENROUTER_API_KEY"
           else
             echo "⚠️  Warning: OPENROUTER_API_KEY secret is not set in GitHub Secrets"
-            echo "   Please set it in: Settings -> Secrets and variables -> Actions"
           fi
           
           if [ -n "${{ secrets.NOTION_API_KEY }}" ]; then
             echo "Setting NOTION_API_KEY..."
-            railway variables set NOTION_API_KEY="${{ secrets.NOTION_API_KEY }}" --service $RAILWAY_SERVICE_ID && echo "✅ NOTION_API_KEY set" || echo "❌ Failed to set NOTION_API_KEY"
+            curl -X POST \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"NOTION_API_KEY\",\"value\":\"${{ secrets.NOTION_API_KEY }}\",\"serviceId\":\"$RAILWAY_SERVICE_ID\"}" \
+              "https://api.railway.app/v1/variables" && echo "✅ NOTION_API_KEY set" || echo "❌ Failed to set NOTION_API_KEY"
           fi
           
           if [ -n "${{ secrets.WEATHER_API_KEY }}" ]; then
             echo "Setting WEATHER_API_KEY..."
-            railway variables set WEATHER_API_KEY="${{ secrets.WEATHER_API_KEY }}" --service $RAILWAY_SERVICE_ID && echo "✅ WEATHER_API_KEY set" || echo "❌ Failed to set WEATHER_API_KEY"
+            curl -X POST \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"WEATHER_API_KEY\",\"value\":\"${{ secrets.WEATHER_API_KEY }}\",\"serviceId\":\"$RAILWAY_SERVICE_ID\"}" \
+              "https://api.railway.app/v1/variables" && echo "✅ WEATHER_API_KEY set" || echo "❌ Failed to set WEATHER_API_KEY"
           fi
           
-          # Проверка установленных переменных
           echo ""
-          echo "Verifying environment variables..."
-          railway variables list --service $RAILWAY_SERVICE_ID 2>/dev/null || railway variables --service $RAILWAY_SERVICE_ID 2>/dev/null || echo "⚠️  Could not list variables (this is OK if variables were set)"
-          
-          # Деплой с использованием Docker образа из GitHub Container Registry
-          echo ""
-          echo "Deploying to Railway..."
-          railway up --service $RAILWAY_SERVICE_ID --detach
-          
-          echo ""
-          echo "✅ Deployment initiated. Check Railway Dashboard for status."
-          echo "   Note: After setting variables, Railway will automatically redeploy the service."
+          echo "✅ Variables set via Railway API"
+          echo "   Railway will automatically redeploy the service with new variables"
+          echo "   Check Railway Dashboard for deployment status"
           
         continue-on-error: true
 
