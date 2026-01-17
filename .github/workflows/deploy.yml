@@ -113,20 +113,32 @@ jobs:
           railway login --token $RAILWAY_TOKEN
           railway link --project $RAILWAY_PROJECT_ID
           
-          # Установка переменных окружения
+          # Установка переменных окружения перед деплоем
+          echo "Setting environment variables..."
+          
           if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
-            railway variables set OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" --service $RAILWAY_SERVICE_ID
+            echo "Setting OPENROUTER_API_KEY..."
+            railway variables set OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" --service $RAILWAY_SERVICE_ID || echo "Warning: Failed to set OPENROUTER_API_KEY"
+          else
+            echo "Warning: OPENROUTER_API_KEY secret is not set"
           fi
           
           if [ -n "${{ secrets.NOTION_API_KEY }}" ]; then
-            railway variables set NOTION_API_KEY="${{ secrets.NOTION_API_KEY }}" --service $RAILWAY_SERVICE_ID
+            echo "Setting NOTION_API_KEY..."
+            railway variables set NOTION_API_KEY="${{ secrets.NOTION_API_KEY }}" --service $RAILWAY_SERVICE_ID || echo "Warning: Failed to set NOTION_API_KEY"
           fi
           
           if [ -n "${{ secrets.WEATHER_API_KEY }}" ]; then
-            railway variables set WEATHER_API_KEY="${{ secrets.WEATHER_API_KEY }}" --service $RAILWAY_SERVICE_ID
+            echo "Setting WEATHER_API_KEY..."
+            railway variables set WEATHER_API_KEY="${{ secrets.WEATHER_API_KEY }}" --service $RAILWAY_SERVICE_ID || echo "Warning: Failed to set WEATHER_API_KEY"
           fi
           
+          # Проверка установленных переменных
+          echo "Verifying environment variables..."
+          railway variables --service $RAILWAY_SERVICE_ID || echo "Warning: Could not list variables"
+          
           # Деплой с использованием Docker образа из GitHub Container Registry
+          echo "Deploying to Railway..."
           railway up --service $RAILWAY_SERVICE_ID --detach
           
         continue-on-error: true
