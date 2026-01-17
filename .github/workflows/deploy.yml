@@ -8,6 +8,8 @@ on:
     paths-ignore:
       - '**.md'
       - '.gitignore'
+      - 'CHANGELOG.md'
+      - 'DEPLOYMENT_README.md'
   workflow_dispatch:
     inputs:
       environment:
