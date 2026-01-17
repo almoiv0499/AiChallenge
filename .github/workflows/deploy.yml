@@ -23,7 +23,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
 
 jobs:
   build:
@@ -72,16 +72,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set image name to lowercase
+        id: image_name
+        run: |
+          IMAGE_NAME_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "image_name_lower=$IMAGE_NAME_LOWER" >> $GITHUB_OUTPUT
+          echo "Image name (lowercase): $IMAGE_NAME_LOWER"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+            ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name_lower }}:latest
+            ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name_lower }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name_lower }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name_lower }}:buildcache,mode=max
 
   deploy:
     needs: build
