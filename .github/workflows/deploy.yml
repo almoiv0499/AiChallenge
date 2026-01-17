@@ -110,12 +110,18 @@ jobs:
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
-          # Railway CLI автоматически использует RAILWAY_TOKEN из переменной окружения
-          # Не нужно вызывать railway login, если токен установлен
-          echo "Authenticating with Railway..."
-          railway whoami || echo "Using token from RAILWAY_TOKEN environment variable"
+          # Railway CLI использует RAILWAY_TOKEN из переменной окружения
+          # Проверяем, что токен установлен
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "❌ Error: RAILWAY_TOKEN is not set"
+            exit 1
+          fi
           
-          echo "Linking to project..."
+          echo "Authenticating with Railway..."
+          # Railway CLI автоматически использует RAILWAY_TOKEN из env
+          export RAILWAY_TOKEN=$RAILWAY_TOKEN
+          
+          echo "Linking to project $RAILWAY_PROJECT_ID..."
           railway link --project $RAILWAY_PROJECT_ID
           
           # Установка переменных окружения перед деплоем
