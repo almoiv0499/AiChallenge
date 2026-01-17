@@ -119,7 +119,69 @@ fun main() = runBlocking {
         ragService = ragService
     )
     ConsoleUI.printReady()
-    runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag, ragService)
+    
+    // Проверка режима работы: интерактивный терминал или сервер
+    val isServerMode = isServerMode()
+    
+    if (isServerMode) {
+        println("🚀 Серверный режим: приложение работает как API сервер")
+        println("   API endpoints доступны на портах:")
+        println("   - Project Task API: http://localhost:8084/api")
+        println("   - Notion MCP: http://localhost:8081")
+        println("   - Weather MCP: http://localhost:8082")
+        println("   - Git MCP: http://localhost:8083")
+        println("")
+        println("   Приложение работает в фоновом режиме. Для остановки используйте Ctrl+C или остановите контейнер.")
+        
+        // В серверном режиме просто держим приложение запущенным
+        // Серверы уже запущены через startLocalServices
+        while (true) {
+            delay(Long.MAX_VALUE)
+        }
+    } else {
+        // Интерактивный режим для локальной разработки
+        runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag, ragService)
+    }
+}
+
+/**
+ * Определяет, запущено ли приложение в серверном режиме
+ * (без интерактивного терминала, например, в Docker или на Railway)
+ */
+private fun isServerMode(): Boolean {
+    // Проверяем переменные окружения, указывающие на серверный режим
+    val port = System.getenv("PORT")
+    val railwayEnv = System.getenv("RAILWAY_ENVIRONMENT")
+    val mode = System.getenv("MODE")?.uppercase()
+    
+    // Если установлен PORT (Railway всегда устанавливает) - это серверный режим
+    if (port != null && port.isNotBlank()) {
+        return true
+    }
+    
+    // Если установлен RAILWAY_ENVIRONMENT - это Railway
+    if (railwayEnv != null && railwayEnv.isNotBlank()) {
+        return true
+    }
+    
+    // Если MODE=server
+    if (mode == "SERVER" || mode == "PRODUCTION") {
+        return true
+    }
+    
+    // Проверяем, доступен ли System.in как интерактивный терминал
+    try {
+        val systemIn = System.`in`
+        // Если System.in недоступен или не является терминалом - серверный режим
+        if (!systemIn.available().let { it >= 0 }) {
+            return true
+        }
+    } catch (e: Exception) {
+        // Если не можем проверить - считаем серверным режимом
+        return true
+    }
+    
+    return false
 }
 
 private suspend fun startLocalServices(notionApiKey: String, weatherApiKey: String, pageId: String?) {
