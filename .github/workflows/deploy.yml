@@ -110,36 +110,54 @@ jobs:
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
-          railway login --token $RAILWAY_TOKEN
+          # Railway CLI автоматически использует RAILWAY_TOKEN из переменной окружения
+          # Не нужно вызывать railway login, если токен установлен
+          echo "Authenticating with Railway..."
+          railway whoami || echo "Using token from RAILWAY_TOKEN environment variable"
+          
+          echo "Linking to project..."
           railway link --project $RAILWAY_PROJECT_ID
           
           # Установка переменных окружения перед деплоем
+          echo ""
           echo "Setting environment variables..."
           
           if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
             echo "Setting OPENROUTER_API_KEY..."
-            railway variables set OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" --service $RAILWAY_SERVICE_ID || echo "Warning: Failed to set OPENROUTER_API_KEY"
+            railway variables set OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" --service $RAILWAY_SERVICE_ID
+            if [ $? -eq 0 ]; then
+              echo "✅ OPENROUTER_API_KEY set successfully"
+            else
+              echo "❌ Failed to set OPENROUTER_API_KEY"
+            fi
           else
-            echo "Warning: OPENROUTER_API_KEY secret is not set"
+            echo "⚠️  Warning: OPENROUTER_API_KEY secret is not set in GitHub Secrets"
+            echo "   Please set it in: Settings -> Secrets and variables -> Actions"
           fi
           
           if [ -n "${{ secrets.NOTION_API_KEY }}" ]; then
             echo "Setting NOTION_API_KEY..."
-            railway variables set NOTION_API_KEY="${{ secrets.NOTION_API_KEY }}" --service $RAILWAY_SERVICE_ID || echo "Warning: Failed to set NOTION_API_KEY"
+            railway variables set NOTION_API_KEY="${{ secrets.NOTION_API_KEY }}" --service $RAILWAY_SERVICE_ID && echo "✅ NOTION_API_KEY set" || echo "❌ Failed to set NOTION_API_KEY"
           fi
           
           if [ -n "${{ secrets.WEATHER_API_KEY }}" ]; then
             echo "Setting WEATHER_API_KEY..."
-            railway variables set WEATHER_API_KEY="${{ secrets.WEATHER_API_KEY }}" --service $RAILWAY_SERVICE_ID || echo "Warning: Failed to set WEATHER_API_KEY"
+            railway variables set WEATHER_API_KEY="${{ secrets.WEATHER_API_KEY }}" --service $RAILWAY_SERVICE_ID && echo "✅ WEATHER_API_KEY set" || echo "❌ Failed to set WEATHER_API_KEY"
           fi
           
           # Проверка установленных переменных
+          echo ""
           echo "Verifying environment variables..."
-          railway variables --service $RAILWAY_SERVICE_ID || echo "Warning: Could not list variables"
+          railway variables list --service $RAILWAY_SERVICE_ID 2>/dev/null || railway variables --service $RAILWAY_SERVICE_ID 2>/dev/null || echo "⚠️  Could not list variables (this is OK if variables were set)"
           
           # Деплой с использованием Docker образа из GitHub Container Registry
+          echo ""
           echo "Deploying to Railway..."
           railway up --service $RAILWAY_SERVICE_ID --detach
+          
+          echo ""
+          echo "✅ Deployment initiated. Check Railway Dashboard for status."
+          echo "   Note: After setting variables, Railway will automatically redeploy the service."
           
         continue-on-error: true
 
