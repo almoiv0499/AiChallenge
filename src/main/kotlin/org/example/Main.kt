@@ -35,16 +35,141 @@ import org.example.project.GetProjectTasksTool
 import org.example.project.UpdateProjectTaskTool
 import org.example.project.GetProjectStatusTool
 import org.example.project.GetTeamCapacityTool
+import org.example.client.ollama.OllamaClient
+import org.example.client.ollama.OllamaChatService
 
-fun main() = runBlocking {
+fun main(args: Array<String>) = runBlocking {
+    // Проверяем только аргумент help
+    if (args.isNotEmpty() && args.any { it.lowercase() in listOf("--help", "-h", "/help", "/?") }) {
+        printModeHelp()
+        return@runBlocking
+    }
+    
+    runApplication()
+}
+
+/**
+ * Интерактивно запрашивает у пользователя выбор режима работы
+ * @return Mode.USE_OLLAMA или Mode.USE_OPENROUTER
+ */
+private suspend fun requestMode(): Mode {
+    println()
+    println("╔══════════════════════════════════════════════════════════════╗")
+    println("║           🤖 Выберите режим работы приложения 🤖            ║")
+    println("╠══════════════════════════════════════════════════════════════╣")
+    println("║                                                              ║")
+    println("║  1  🦙 Ollama - локальная модель                            ║")
+    println("║  2  🌐 OpenRouter - облачная модель (старая реализация)     ║")
+    println("║                                                              ║")
+    println("╚══════════════════════════════════════════════════════════════╝")
+    print("\nВыберите режим (1 или 2): ")
+    
+    while (true) {
+        val input = readlnOrNull()?.trim()
+        when (input) {
+            "1" -> {
+                println("✅ Выбран режим: Ollama\n")
+                return Mode.USE_OLLAMA
+            }
+            "2" -> {
+                println("✅ Выбран режим: OpenRouter\n")
+                return Mode.USE_OPENROUTER
+            }
+            else -> {
+                print("❌ Неверный ввод. Пожалуйста, введите 1 или 2: ")
+            }
+        }
+    }
+}
+
+/**
+ * Выводит справку по режимам работы приложения
+ */
+private fun printModeHelp() {
+    println("""
+        
+        ╔══════════════════════════════════════════════════════════════╗
+        ║              🤖 Режимы работы приложения 🤖                  ║
+        ╠══════════════════════════════════════════════════════════════╣
+        ║                                                              ║
+        ║  При запуске приложения будет предложено выбрать режим:      ║
+        ║    1 - 🦙 Ollama (локальная модель)                          ║
+        ║    2 - 🌐 OpenRouter (облачная модель, старая реализация)    ║
+        ║                                                              ║
+        ║  Аргументы командной строки:                                ║
+        ║    --help, -h            Показать эту справку                ║
+        ║                                                              ║
+        ╚══════════════════════════════════════════════════════════════╝
+        
+    """.trimIndent())
+}
+
+/**
+ * Режим работы приложения
+ */
+private enum class Mode {
+    USE_OLLAMA,      // Использовать Ollama
+    USE_OPENROUTER   // Использовать OpenRouter (старая реализация)
+}
+
+private suspend fun runApplication() {
     ConsoleUI.printWelcome()
+    
+    // Интерактивно запрашиваем выбор режима работы
+    val mode = requestMode()
+    
+    // Проверка режима работы: интерактивный терминал или сервер
+    val isServerMode = isServerMode()
+    
+    if (isServerMode) {
+        // Серверный режим - инициализируем все сервисы
+        val notionApiKey = AppConfig.loadNotionApiKey()
+        val weatherApiKey = AppConfig.loadWeatherApiKey()
+        val pageId = AppConfig.loadNotionPageId()
+        ConsoleUI.printInitializing()
+        startLocalServices(notionApiKey, weatherApiKey, pageId)
+        delay(1000)
+        
+        println("🚀 Серверный режим: приложение работает как API сервер")
+        println("   API endpoints доступны на портах:")
+        println("   - Project Task API: http://localhost:8084/api")
+        println("   - Notion MCP: http://localhost:8081")
+        println("   - Weather MCP: http://localhost:8082")
+        println("   - Git MCP: http://localhost:8083")
+        println("")
+        println("   Приложение работает в фоновом режиме. Для остановки используйте Ctrl+C или остановите контейнер.")
+        
+        // В серверном режиме просто держим приложение запущенным
+        while (true) {
+            delay(Long.MAX_VALUE)
+        }
+    } else {
+        // Интерактивный режим для локальной разработки
+        // Используем выбранный пользователем режим
+        when (mode) {
+            Mode.USE_OLLAMA -> {
+                println("\n🦙 Запуск в режиме Ollama...")
+                println("   Инструменты, RAG и MCP серверы не инициализируются")
+                runOllama()
+            }
+            Mode.USE_OPENROUTER -> {
+                println("\n🌐 Запуск в режиме OpenRouter...")
+                initializeOpenRouterServices()
+            }
+        }
+    }
+}
+
+/**
+ * Инициализирует все сервисы для режима OpenRouter: инструменты, RAG, MCP
+ */
+private suspend fun initializeOpenRouterServices() {
     val apiKey = AppConfig.loadApiKey()
     val notionApiKey = AppConfig.loadNotionApiKey()
     val weatherApiKey = AppConfig.loadWeatherApiKey()
     val databaseId = AppConfig.loadNotionDatabaseId()
     val pageId = AppConfig.loadNotionPageId()
-    val weatherLat = AppConfig.loadWeatherLatitude()
-    val weatherLon = AppConfig.loadWeatherLongitude()
+    
     ConsoleUI.printInitializing()
     startLocalServices(notionApiKey, weatherApiKey, pageId)
     delay(1000)
@@ -120,28 +245,7 @@ fun main() = runBlocking {
     )
     ConsoleUI.printReady()
     
-    // Проверка режима работы: интерактивный терминал или сервер
-    val isServerMode = isServerMode()
-    
-    if (isServerMode) {
-        println("🚀 Серверный режим: приложение работает как API сервер")
-        println("   API endpoints доступны на портах:")
-        println("   - Project Task API: http://localhost:8084/api")
-        println("   - Notion MCP: http://localhost:8081")
-        println("   - Weather MCP: http://localhost:8082")
-        println("   - Git MCP: http://localhost:8083")
-        println("")
-        println("   Приложение работает в фоновом режиме. Для остановки используйте Ctrl+C или остановите контейнер.")
-        
-        // В серверном режиме просто держим приложение запущенным
-        // Серверы уже запущены через startLocalServices
-        while (true) {
-            delay(Long.MAX_VALUE)
-        }
-    } else {
-        // Интерактивный режим для локальной разработки
-        runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag, ragService)
-    }
+    runChatLoop(agent, client, notionApiKey, databaseId, embeddingClientForRag, ragService)
 }
 
 /**
@@ -507,6 +611,268 @@ private fun printHelpUsage() {
       • /help строки 100-200
       
     """.trimIndent())
+}
+
+/**
+ * Проверяет, должна ли использоваться Ollama вместо OpenRouter
+ * Проверяет переменную окружения USE_OLLAMA или доступность Ollama API
+ */
+private suspend fun shouldUseOllama(): Boolean {
+    val useOllamaEnv = System.getenv("USE_OLLAMA")?.uppercase()
+    if (useOllamaEnv == "TRUE" || useOllamaEnv == "1" || useOllamaEnv == "YES") {
+        return true
+    }
+    if (useOllamaEnv == "FALSE" || useOllamaEnv == "0" || useOllamaEnv == "NO") {
+        return false
+    }
+    
+    // Если не указано явно, проверяем доступность Ollama
+    val ollamaClient = OllamaClient()
+    return try {
+        val isAvailable = ollamaClient.isAvailable()
+        ollamaClient.close()
+        if (isAvailable) {
+            println("✅ Обнаружен локальный Ollama API")
+            println("   Используется Ollama для общения. Для переключения на OpenRouter установите USE_OLLAMA=FALSE")
+            true
+        } else {
+            false
+        }
+    } catch (e: Exception) {
+        ollamaClient.close()
+        false
+    }
+}
+
+/**
+ * Запускает локальную модель Ollama для общения в терминале
+ * Вся логика работы с Ollama находится в этой функции
+ * @return true если Ollama успешно запущен и готов к работе, false если произошла ошибка
+ */
+private suspend fun runOllama(): Boolean {
+    println("\n🦙 Инициализация Ollama...")
+    println("   Убедитесь, что Ollama запущен локально (http://localhost:11434)")
+    
+    val ollamaClient = OllamaClient()
+    
+    // Проверяем доступность
+    if (!ollamaClient.isAvailable()) {
+        println("❌ Ollama API недоступен на http://localhost:11434/api")
+        println("   Запустите Ollama и попробуйте снова")
+        println("   Или установите USE_OLLAMA=FALSE для использования OpenRouter")
+        ollamaClient.close()
+        return false
+    }
+    
+    // Получаем список доступных моделей
+    val models = try {
+        ollamaClient.listModels()
+    } catch (e: Exception) {
+        println("⚠️ Не удалось получить список моделей: ${e.message}")
+        emptyList()
+    }
+    
+    // Выбираем модель
+    val defaultModel = if (models.isNotEmpty()) {
+        println("\n📋 Доступные модели:")
+        models.forEachIndexed { index, model ->
+            println("   ${index + 1}. ${model.name}")
+        }
+        val modelName = System.getenv("OLLAMA_MODEL") ?: models.first().name
+        println("\n✅ Используется модель: $modelName")
+        if (System.getenv("OLLAMA_MODEL") == null && models.isNotEmpty()) {
+            println("   Для выбора другой модели установите переменную окружения OLLAMA_MODEL")
+        }
+        modelName
+    } else {
+        val modelName = System.getenv("OLLAMA_MODEL") ?: "llama3.2"
+        println("\n✅ Используется модель: $modelName (по умолчанию)")
+        modelName
+    }
+    
+    // Создаем системный промпт и сервис
+    val systemPrompt = """
+        Ты полезный AI-ассистент. Отвечай на вопросы пользователя кратко и по делу.
+        Используй дружелюбный и профессиональный тон.
+    """.trimIndent()
+    
+    val chatService = OllamaChatService(
+        ollamaClient = ollamaClient,
+        model = defaultModel,
+        systemPrompt = systemPrompt
+    )
+    
+    println("\n✅ Ollama готов к работе! Модель: $defaultModel")
+    println("   Введите ваш вопрос:\n")
+    
+    // Запускаем цикл общения
+    while (true) {
+        ConsoleUI.printUserPrompt()
+        val input = readlnOrNull()?.trim() ?: continue
+        if (input.isEmpty()) continue
+        
+        when {
+            isExitCommand(input) -> {
+                ConsoleUI.printGoodbye()
+                ollamaClient.close()
+                return true
+            }
+            isClearCommand(input) -> {
+                chatService.clearHistory()
+                ConsoleUI.printHistoryCleared()
+            }
+            isHelpCommand(input) -> {
+                printOllamaHelp()
+            }
+            isModelsCommand(input) -> {
+                printOllamaModels(ollamaClient)
+            }
+            isRunningModelsCommand(input) -> {
+                printRunningOllamaModels(ollamaClient)
+            }
+            else -> {
+                try {
+                    val response = chatService.processMessage(input)
+                    ConsoleUI.printResponse(response)
+                } catch (e: Exception) {
+                    ConsoleUI.printError(e.message)
+                    e.printStackTrace()
+                    println("\n⚠️ Произошла ошибка при общении с Ollama")
+                    println("   Вы можете перезапустить приложение или использовать OpenRouter (установите USE_OLLAMA=FALSE)")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Проверяет, является ли команда запросом списка моделей
+ */
+private fun isModelsCommand(input: String): Boolean =
+    input.lowercase() in listOf("/models", "/model-list", "/list-models")
+
+/**
+ * Проверяет, является ли команда запросом списка запущенных моделей
+ */
+private fun isRunningModelsCommand(input: String): Boolean =
+    input.lowercase() in listOf("/running", "/running-models", "/ps", "/list-running")
+
+/**
+ * Выводит список доступных моделей Ollama
+ */
+private suspend fun printOllamaModels(ollamaClient: OllamaClient) {
+    try {
+        val models = ollamaClient.listModels()
+        if (models.isEmpty()) {
+            println("📋 Модели не найдены. Установите модель командой: ollama pull <model-name>")
+        } else {
+            println("\n📋 Доступные модели Ollama:")
+            models.forEachIndexed { index, model ->
+                val size = model.size?.let { 
+                    val gb = it / 1_000_000_000.0
+                    if (gb >= 1) String.format("%.2fGB", gb) else "${it / 1_000_000}MB"
+                } ?: "N/A"
+                
+                val details = model.details
+                val paramSize = details?.parameterSize ?: "N/A"
+                val family = details?.family ?: details?.families?.firstOrNull() ?: "N/A"
+                
+                println("   ${index + 1}. ${model.name}")
+                println("      └─ Размер: $size | Параметры: $paramSize | Семейство: $family")
+                if (details?.quantizationLevel != null) {
+                    println("      └─ Квантование: ${details.quantizationLevel}")
+                }
+            }
+            println()
+        }
+    } catch (e: Exception) {
+        println("❌ Ошибка при получении списка моделей: ${e.message}")
+    }
+}
+
+/**
+ * Выводит список запущенных моделей Ollama (загруженных в память)
+ */
+private suspend fun printRunningOllamaModels(ollamaClient: OllamaClient) {
+    try {
+        val runningModels = ollamaClient.listRunningModels()
+        if (runningModels.isEmpty()) {
+            println("📋 Нет запущенных моделей в памяти")
+            println("   Модели загружаются автоматически при первом использовании")
+        } else {
+            println("\n🔄 Запущенные модели Ollama (в памяти):")
+            runningModels.forEachIndexed { index, model ->
+                val sizeVram = model.sizeVram?.let { 
+                    val gb = it / 1_000_000_000.0
+                    if (gb >= 1) String.format("%.2fGB", gb) else "${it / 1_000_000}MB"
+                } ?: "N/A"
+                
+                val contextLength = model.contextLength ?: "N/A"
+                val expiresAt = model.expiresAt?.let { 
+                    // Парсим ISO 8601 дату и показываем оставшееся время
+                    "до $it"
+                } ?: "не указано"
+                
+                println("   ${index + 1}. ${model.model}")
+                println("      └─ VRAM: $sizeVram | Контекст: $contextLength токенов | Истекает: $expiresAt")
+                
+                val details = model.details
+                if (details != null) {
+                    val paramSize = details.parameterSize ?: "N/A"
+                    val family = details.family ?: details.families?.firstOrNull() ?: "N/A"
+                    println("      └─ Параметры: $paramSize | Семейство: $family")
+                }
+            }
+            println()
+        }
+    } catch (e: Exception) {
+        println("❌ Ошибка при получении списка запущенных моделей: ${e.message}")
+    }
+}
+
+/**
+ * Выводит справку по использованию Ollama чата
+ */
+private fun printOllamaHelp() {
+    println("""
+        
+        📖 Справка по использованию Ollama чата:
+        
+        ═══════════════════════════════════════════════════════════════
+        📋 КОМАНДЫ
+        ═══════════════════════════════════════════════════════════════
+        
+        🔹 Основные команды:
+        • /exit            - выход из программы
+        • /clear           - очистить историю разговора
+        • /help            - эта справка
+        • /models          - показать список доступных моделей
+        • /running         - показать список запущенных моделей (в памяти)
+        
+        ═══════════════════════════════════════════════════════════════
+        🔧 НАСТРОЙКИ
+        ═══════════════════════════════════════════════════════════════
+        
+        🔹 Переменные окружения:
+        • USE_OLLAMA=TRUE/FALSE  - использовать Ollama (по умолчанию проверяется автоматически)
+        • OLLAMA_MODEL=<name>    - выбрать модель (по умолчанию: llama3.2)
+        • OLLAMA_BASE_URL=<url>  - URL Ollama API (по умолчанию: http://localhost:11434/api)
+        
+        🔹 Установка моделей:
+        • ollama pull llama3.2
+        • ollama pull mistral
+        • ollama pull codellama
+        
+        ═══════════════════════════════════════════════════════════════
+        💡 ПРИМЕРЫ
+        ═══════════════════════════════════════════════════════════════
+        
+        • "Привет! Расскажи о себе"
+        • "Что такое Kotlin?"
+        • "Напиши простую функцию на Kotlin для сортировки массива"
+        • "Объясни концепцию корутин в Kotlin"
+        
+        """.trimIndent())
 }
 
 /**

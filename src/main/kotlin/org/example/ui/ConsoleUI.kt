@@ -326,4 +326,19 @@ object ConsoleUI {
     fun printMcpToolsRegistered(count: Int) {
         println("✅ Зарегистрировано MCP инструментов: $count")
     }
+
+    fun printOllamaResponse(
+        model: String,
+        responseTimeMs: Long,
+        promptTokens: Int,
+        outputTokens: Int,
+        totalTokens: Int
+    ) {
+        println("📥 Получен ответ от Ollama")
+        println("   Модель: $model")
+        println("   📤 Токенов на запрос (prompt): $promptTokens")
+        println("   📥 Токенов на ответ (output): $outputTokens")
+        println("   📊 Всего токенов: $totalTokens")
+        println("   ⏱️ Время ответа: ${responseTimeMs}ms")
+    }
 }
