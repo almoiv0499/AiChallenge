@@ -122,3 +122,19 @@ tasks.register<JavaExec>("runSupportService") {
     classpath = sourceSets["main"].runtimeClasspath
     standardInput = System.`in`
 }
+
+// Задача для запуска чат-сервера
+tasks.register<JavaExec>("runChatServer") {
+    group = "application"
+    description = "Запускает REST API чат-сервер с локальной моделью Ollama"
+    mainClass.set("org.example.chat.ChatServerMainKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    
+    // Переменные окружения можно задать через -Penv.port=8080 и т.д.
+    if (project.hasProperty("env.port")) {
+        environment("PORT", project.property("env.port"))
+    }
+    if (project.hasProperty("env.model")) {
+        environment("OLLAMA_MODEL", project.property("env.model"))
+    }
+}
