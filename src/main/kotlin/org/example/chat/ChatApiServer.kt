@@ -26,15 +26,18 @@ import kotlinx.serialization.json.put
 import org.example.client.ollama.OllamaClient
 import org.example.client.ollama.OllamaChatService
 import org.example.client.ollama.OllamaMessage
+import org.example.config.LoadedOllamaLlmConfig
 
 /**
- * REST API сервер для чата с локальной моделью Ollama
+ * REST API сервер для чата с локальной моделью Ollama.
+ * Использует [llmConfig] для температуры, контекста, max tokens и системного промпта.
  */
 class ChatApiServer(
     private val ollamaClient: OllamaClient,
     private val chatService: OllamaChatService,
     private val historyStorage: ChatHistoryStorage,
-    private val model: String
+    private val model: String,
+    private val llmConfig: LoadedOllamaLlmConfig? = null
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -350,20 +353,21 @@ class ChatApiServer(
                         return@post
                     }
                     
-                    // Получаем историю для контекста (БЕЗ текущего сообщения)
                     val history = historyStorage.getHistory()
                     val ollamaMessages = history.map { msg ->
                         OllamaMessage(role = msg.role, content = msg.content)
                     }
                     
-                    // Добавляем текущее сообщение пользователя в историю для отправки
-                    val messagesWithCurrent = ollamaMessages + OllamaMessage(role = "user", content = message)
+                    val opts = llmConfig?.toOllamaOptions()
+                    val sysPrompt = llmConfig?.systemPrompt
                     
-                    // Отправляем запрос в Ollama
+                    // Отправляем запрос в Ollama (с опциями и системным промптом при наличии конфига)
                     val response = ollamaClient.chat(
                         message = message,
                         model = model,
-                        conversationHistory = ollamaMessages
+                        conversationHistory = ollamaMessages,
+                        systemPrompt = sysPrompt,
+                        options = opts
                     )
                     
                     val assistantMessage = response.message?.content ?: "Ошибка: пустой ответ от модели"

@@ -27,60 +27,85 @@ class OllamaClient(
     private val client = createHttpClient()
 
     /**
-     * Отправляет сообщение в чат с моделью Ollama
+     * Отправляет сообщение в чат с моделью Ollama.
+     * @param systemPrompt необязательный системный промпт (добавляется в начало диалога)
+     * @param options явные опции; иначе собираются из temperature, maxTokens, numCtx, topP, repeatPenalty
      */
     suspend fun chat(
         message: String,
         model: String = defaultModel,
         conversationHistory: List<OllamaMessage> = emptyList(),
+        systemPrompt: String? = null,
         temperature: Double? = null,
-        maxTokens: Int? = null
+        maxTokens: Int? = null,
+        numCtx: Int? = null,
+        topP: Double? = null,
+        repeatPenalty: Double? = null,
+        options: OllamaOptions? = null
     ): OllamaChatResponse {
         val messages = buildList {
+            if (!systemPrompt.isNullOrBlank()) {
+                add(OllamaMessage(role = "system", content = systemPrompt))
+            }
             addAll(conversationHistory)
             add(OllamaMessage(role = "user", content = message))
         }
+
+        val opts = options ?: if (temperature != null || maxTokens != null || numCtx != null || topP != null || repeatPenalty != null) {
+            OllamaOptions(
+                temperature = temperature,
+                numPredict = maxTokens,
+                numCtx = numCtx,
+                topP = topP,
+                repeatPenalty = repeatPenalty
+            )
+        } else null
 
         val request = OllamaChatRequest(
             model = model,
             messages = messages,
             stream = false,
-            options = if (temperature != null || maxTokens != null) {
-                OllamaOptions(
-                    temperature = temperature,
-                    numPredict = maxTokens
-                )
-            } else null
+            options = opts
         )
 
         return sendChatRequest(request)
     }
 
     /**
-     * Отправляет системный промпт и сообщение пользователя
+     * Отправляет системный промпт и сообщение пользователя.
+     * Поддерживает numCtx, topP, repeatPenalty.
      */
     suspend fun chatWithSystemPrompt(
         systemPrompt: String,
         userMessage: String,
         model: String = defaultModel,
         temperature: Double? = null,
-        maxTokens: Int? = null
+        maxTokens: Int? = null,
+        numCtx: Int? = null,
+        topP: Double? = null,
+        repeatPenalty: Double? = null,
+        options: OllamaOptions? = null
     ): OllamaChatResponse {
         val messages = listOf(
             OllamaMessage(role = "system", content = systemPrompt),
             OllamaMessage(role = "user", content = userMessage)
         )
 
+        val opts = options ?: if (temperature != null || maxTokens != null || numCtx != null || topP != null || repeatPenalty != null) {
+            OllamaOptions(
+                temperature = temperature,
+                numPredict = maxTokens,
+                numCtx = numCtx,
+                topP = topP,
+                repeatPenalty = repeatPenalty
+            )
+        } else null
+
         val request = OllamaChatRequest(
             model = model,
             messages = messages,
             stream = false,
-            options = if (temperature != null || maxTokens != null) {
-                OllamaOptions(
-                    temperature = temperature,
-                    numPredict = maxTokens
-                )
-            } else null
+            options = opts
         )
 
         return sendChatRequest(request)
@@ -109,8 +134,8 @@ class OllamaClient(
     }
 
     /**
-     * Генерирует ответ для предоставленного промпта (без истории диалога)
-     * Документация: https://docs.ollama.com/api/generate
+     * Генерирует ответ для предоставленного промпта (без истории диалога).
+     * Поддерживает numCtx, topP, repeatPenalty, options.
      */
     suspend fun generate(
         prompt: String,
@@ -118,11 +143,24 @@ class OllamaClient(
         systemPrompt: String? = null,
         temperature: Double? = null,
         maxTokens: Int? = null,
-        format: String? = null, // "json" for structured output
-        images: List<String>? = null, // Base64-encoded images
+        numCtx: Int? = null,
+        topP: Double? = null,
+        repeatPenalty: Double? = null,
+        options: OllamaOptions? = null,
+        format: String? = null,
+        images: List<String>? = null,
         keepAlive: String? = null,
         think: Boolean? = null
     ): OllamaGenerateResponse {
+        val opts = options ?: if (temperature != null || maxTokens != null || numCtx != null || topP != null || repeatPenalty != null) {
+            OllamaOptions(
+                temperature = temperature,
+                numPredict = maxTokens,
+                numCtx = numCtx,
+                topP = topP,
+                repeatPenalty = repeatPenalty
+            )
+        } else null
         val request = OllamaGenerateRequest(
             model = model,
             prompt = prompt,
@@ -132,36 +170,45 @@ class OllamaClient(
             images = images,
             keepAlive = keepAlive,
             think = think,
-            options = if (temperature != null || maxTokens != null) {
-                OllamaOptions(
-                    temperature = temperature,
-                    numPredict = maxTokens
-                )
-            } else null
+            options = opts
         )
-
         return sendGenerateRequest(request)
     }
 
     /**
-     * Отправляет чат-запрос с поддержкой инструментов (tools)
+     * Отправляет чат-запрос с поддержкой инструментов (tools).
+     * Поддерживает numCtx, topP, repeatPenalty, options.
      */
     suspend fun chatWithTools(
         message: String,
         model: String = defaultModel,
         conversationHistory: List<OllamaMessage> = emptyList(),
+        systemPrompt: String? = null,
         tools: List<OllamaTool>? = null,
         temperature: Double? = null,
         maxTokens: Int? = null,
-        format: String? = null, // "json" for structured output
+        numCtx: Int? = null,
+        topP: Double? = null,
+        repeatPenalty: Double? = null,
+        options: OllamaOptions? = null,
+        format: String? = null,
         keepAlive: String? = null,
         think: Boolean? = null
     ): OllamaChatResponse {
         val messages = buildList {
+            if (!systemPrompt.isNullOrBlank()) add(OllamaMessage(role = "system", content = systemPrompt))
             addAll(conversationHistory)
             add(OllamaMessage(role = "user", content = message))
         }
-
+        val opts = options ?: if (temperature != null || maxTokens != null || numCtx != null || topP != null || repeatPenalty != null) {
+            OllamaOptions(
+                temperature = temperature,
+                numPredict = maxTokens,
+                numCtx = numCtx,
+                topP = topP,
+                repeatPenalty = repeatPenalty
+            )
+        } else null
         val request = OllamaChatRequest(
             model = model,
             messages = messages,
@@ -170,14 +217,8 @@ class OllamaClient(
             tools = tools,
             keepAlive = keepAlive,
             think = think,
-            options = if (temperature != null || maxTokens != null) {
-                OllamaOptions(
-                    temperature = temperature,
-                    numPredict = maxTokens
-                )
-            } else null
+            options = opts
         )
-
         return sendChatRequest(request)
     }
 
@@ -202,9 +243,14 @@ class OllamaClient(
 
     private suspend fun sendChatRequest(request: OllamaChatRequest): OllamaChatResponse {
         val startTime = System.currentTimeMillis()
+        val body = json.encodeToString(OllamaChatRequest.serializer(), request)
+        if (System.getenv("OLLAMA_DEBUG") == "true") {
+            println("🦙 [OLLAMA_DEBUG] Request options: ${request.options}")
+            println("🦙 [OLLAMA_DEBUG] Request body (excerpt): ${body.take(500)}...")
+        }
         val response = client.post("$baseUrl/chat") {
             contentType(ContentType.Application.Json)
-            setBody(request)
+            setBody(io.ktor.http.content.TextContent(body, ContentType.Application.Json))
         }
         val responseTimeMs = System.currentTimeMillis() - startTime
 
@@ -446,7 +492,7 @@ class OllamaClient(
 
     private fun createJsonSerializer() = Json {
         ignoreUnknownKeys = true
-        encodeDefaults = false
+        encodeDefaults = true
         explicitNulls = false
         prettyPrint = false
         isLenient = true

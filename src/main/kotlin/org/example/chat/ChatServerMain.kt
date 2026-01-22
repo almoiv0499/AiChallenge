@@ -6,24 +6,24 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.example.client.ollama.OllamaClient
 import org.example.client.ollama.OllamaChatService
+import org.example.config.OllamaLlmConfig
+import org.example.config.LoadedOllamaLlmConfig
 import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * Главный класс для запуска чат-сервера с локальной моделью Ollama
+ * Главный класс для запуска чат-сервера с локальной моделью Ollama.
+ * Параметры LLM (температура, контекст, max tokens, промпт) задаются через
+ * переменные окружения — см. [OllamaLlmConfig] и OLLAMA_OPTIMIZATION.md.
  */
 fun main(args: Array<String>) = runBlocking {
     println("🚀 Запуск чат-сервера с локальной моделью Ollama...")
     
-    // Настройки из переменных окружения
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
     val ollamaBaseUrl = System.getenv("OLLAMA_BASE_URL") ?: "http://localhost:11434/api"
     val model = System.getenv("OLLAMA_MODEL") ?: "llama3.2"
-    val systemPrompt = System.getenv("OLLAMA_SYSTEM_PROMPT") ?: """
-        Ты полезный AI-ассистент. Отвечай на вопросы пользователя кратко и по делу.
-        Используй дружелюбный и профессиональный тон.
-        Поддерживай русский и английский языки.
-    """.trimIndent()
+    val llmConfig: LoadedOllamaLlmConfig = OllamaLlmConfig.load()
+    val systemPrompt = llmConfig.systemPrompt
     
     // Проверяем и запускаем Ollama, если нужно
     ensureOllamaRunning()
@@ -70,12 +70,12 @@ fun main(args: Array<String>) = runBlocking {
     // Создаем хранилище истории
     val historyStorage = ChatHistoryStorage()
     
-    // Создаем API сервер
     val chatApiServer = ChatApiServer(
         ollamaClient = ollamaClient,
         chatService = chatService,
         historyStorage = historyStorage,
-        model = modelToUse
+        model = modelToUse,
+        llmConfig = llmConfig
     )
     
     // Запускаем сервер на всех интерфейсах (0.0.0.0) для доступа извне
@@ -90,6 +90,7 @@ fun main(args: Array<String>) = runBlocking {
     println("   📡 API: http://localhost:$port/api")
     println("   🦙 Модель: $modelToUse")
     println("   📝 История диалога сохраняется в базу данных")
+    println("   ⚙️ LLM: temp=${llmConfig.temperature}, max_tokens=${llmConfig.maxTokens}, num_ctx=${llmConfig.numCtx}")
     println()
     println("   Для остановки нажмите Ctrl+C")
     
