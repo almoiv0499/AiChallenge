@@ -23,7 +23,7 @@ object OllamaLlmConfig {
     const val PROMPT_PRESET_ENV = "OLLAMA_PROMPT_PRESET"
 
     /** Температура по умолчанию. 0.3–0.5 хорошо для точных ответов. */
-    const val DEFAULT_TEMPERATURE = 0.1
+    const val DEFAULT_TEMPERATURE = 2.0
 
     /** Макс. токенов ответа. */
     const val DEFAULT_MAX_TOKENS = 2048

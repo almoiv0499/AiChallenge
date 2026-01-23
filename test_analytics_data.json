@@ -1,0 +1,613 @@
+{
+  "company": "TechFlow Solutions",
+  "period": "Q4 2024",
+  "departments": [
+    {
+      "id": "DEV",
+      "name": "Development",
+      "budget": 450000,
+      "headcount": 12
+    },
+    {
+      "id": "QA",
+      "name": "Quality Assurance",
+      "budget": 180000,
+      "headcount": 5
+    },
+    {
+      "id": "DEVOPS",
+      "name": "DevOps",
+      "budget": 220000,
+      "headcount": 4
+    },
+    {
+      "id": "SUPPORT",
+      "name": "Customer Support",
+      "budget": 150000,
+      "headcount": 6
+    }
+  ],
+  "employees": [
+    {
+      "id": "E001",
+      "name": "Алексей Петров",
+      "department": "DEV",
+      "role": "Tech Lead",
+      "salary": 280000,
+      "hired": "2021-03-15",
+      "performance_score": 4.8,
+      "remote": true
+    },
+    {
+      "id": "E002",
+      "name": "Мария Иванова",
+      "department": "DEV",
+      "role": "Senior Developer",
+      "salary": 220000,
+      "hired": "2021-06-01",
+      "performance_score": 4.5,
+      "remote": true
+    },
+    {
+      "id": "E003",
+      "name": "Дмитрий Сидоров",
+      "department": "DEV",
+      "role": "Senior Developer",
+      "salary": 210000,
+      "hired": "2022-01-10",
+      "performance_score": 4.2,
+      "remote": false
+    },
+    {
+      "id": "E004",
+      "name": "Елена Козлова",
+      "department": "DEV",
+      "role": "Middle Developer",
+      "salary": 160000,
+      "hired": "2022-09-01",
+      "performance_score": 4.0,
+      "remote": true
+    },
+    {
+      "id": "E005",
+      "name": "Андрей Новиков",
+      "department": "DEV",
+      "role": "Middle Developer",
+      "salary": 150000,
+      "hired": "2023-02-15",
+      "performance_score": 3.8,
+      "remote": false
+    },
+    {
+      "id": "E006",
+      "name": "Ольга Федорова",
+      "department": "DEV",
+      "role": "Junior Developer",
+      "salary": 95000,
+      "hired": "2024-01-20",
+      "performance_score": 3.5,
+      "remote": false
+    },
+    {
+      "id": "E007",
+      "name": "Сергей Морозов",
+      "department": "QA",
+      "role": "QA Lead",
+      "salary": 190000,
+      "hired": "2021-05-01",
+      "performance_score": 4.6,
+      "remote": true
+    },
+    {
+      "id": "E008",
+      "name": "Анна Волкова",
+      "department": "QA",
+      "role": "Senior QA",
+      "salary": 140000,
+      "hired": "2022-03-01",
+      "performance_score": 4.3,
+      "remote": true
+    },
+    {
+      "id": "E009",
+      "name": "Игорь Лебедев",
+      "department": "QA",
+      "role": "QA Engineer",
+      "salary": 110000,
+      "hired": "2023-06-01",
+      "performance_score": 3.9,
+      "remote": false
+    },
+    {
+      "id": "E010",
+      "name": "Наталья Соколова",
+      "department": "DEVOPS",
+      "role": "DevOps Lead",
+      "salary": 250000,
+      "hired": "2020-11-01",
+      "performance_score": 4.9,
+      "remote": true
+    },
+    {
+      "id": "E011",
+      "name": "Павел Кузнецов",
+      "department": "DEVOPS",
+      "role": "DevOps Engineer",
+      "salary": 180000,
+      "hired": "2022-07-01",
+      "performance_score": 4.4,
+      "remote": true
+    },
+    {
+      "id": "E012",
+      "name": "Виктория Смирнова",
+      "department": "SUPPORT",
+      "role": "Support Lead",
+      "salary": 160000,
+      "hired": "2021-08-01",
+      "performance_score": 4.7,
+      "remote": false
+    },
+    {
+      "id": "E013",
+      "name": "Михаил Попов",
+      "department": "SUPPORT",
+      "role": "Support Specialist",
+      "salary": 85000,
+      "hired": "2023-03-01",
+      "performance_score": 4.1,
+      "remote": false
+    },
+    {
+      "id": "E014",
+      "name": "Екатерина Орлова",
+      "department": "SUPPORT",
+      "role": "Support Specialist",
+      "salary": 80000,
+      "hired": "2023-09-01",
+      "performance_score": 3.6,
+      "remote": false
+    }
+  ],
+  "projects": [
+    {
+      "id": "P001",
+      "name": "Mobile App v2.0",
+      "status": "in_progress",
+      "priority": "high",
+      "start_date": "2024-09-01",
+      "deadline": "2024-12-31",
+      "budget": 120000,
+      "spent": 95000,
+      "team": [
+        "E001",
+        "E002",
+        "E004",
+        "E007"
+      ],
+      "completion_percent": 75
+    },
+    {
+      "id": "P002",
+      "name": "API Migration",
+      "status": "completed",
+      "priority": "critical",
+      "start_date": "2024-07-01",
+      "deadline": "2024-10-15",
+      "budget": 80000,
+      "spent": 72000,
+      "team": [
+        "E003",
+        "E010",
+        "E011"
+      ],
+      "completion_percent": 100
+    },
+    {
+      "id": "P003",
+      "name": "Customer Portal",
+      "status": "in_progress",
+      "priority": "medium",
+      "start_date": "2024-10-01",
+      "deadline": "2025-02-28",
+      "budget": 150000,
+      "spent": 45000,
+      "team": [
+        "E002",
+        "E005",
+        "E006",
+        "E008"
+      ],
+      "completion_percent": 30
+    },
+    {
+      "id": "P004",
+      "name": "Security Audit",
+      "status": "delayed",
+      "priority": "critical",
+      "start_date": "2024-08-01",
+      "deadline": "2024-11-30",
+      "budget": 50000,
+      "spent": 48000,
+      "team": [
+        "E010",
+        "E007",
+        "E009"
+      ],
+      "completion_percent": 60
+    },
+    {
+      "id": "P005",
+      "name": "Chatbot Integration",
+      "status": "on_hold",
+      "priority": "low",
+      "start_date": "2024-06-01",
+      "deadline": "2024-12-15",
+      "budget": 35000,
+      "spent": 12000,
+      "team": [
+        "E004",
+        "E013"
+      ],
+      "completion_percent": 25
+    }
+  ],
+  "incidents": [
+    {
+      "id": "INC001",
+      "date": "2024-10-05",
+      "severity": "critical",
+      "service": "payment-gateway",
+      "description": "Payment processing failure",
+      "resolution_hours": 2.5,
+      "assignee": "E010",
+      "root_cause": "database_connection",
+      "customer_impact": true
+    },
+    {
+      "id": "INC002",
+      "date": "2024-10-08",
+      "severity": "high",
+      "service": "auth-service",
+      "description": "Login timeout issues",
+      "resolution_hours": 4.0,
+      "assignee": "E011",
+      "root_cause": "memory_leak",
+      "customer_impact": true
+    },
+    {
+      "id": "INC003",
+      "date": "2024-10-12",
+      "severity": "medium",
+      "service": "notification-service",
+      "description": "Email delays",
+      "resolution_hours": 1.5,
+      "assignee": "E011",
+      "root_cause": "queue_overflow",
+      "customer_impact": true
+    },
+    {
+      "id": "INC004",
+      "date": "2024-10-15",
+      "severity": "low",
+      "service": "analytics-dashboard",
+      "description": "Charts not loading",
+      "resolution_hours": 0.5,
+      "assignee": "E003",
+      "root_cause": "frontend_bug",
+      "customer_impact": false
+    },
+    {
+      "id": "INC005",
+      "date": "2024-10-18",
+      "severity": "critical",
+      "service": "payment-gateway",
+      "description": "Duplicate transactions",
+      "resolution_hours": 6.0,
+      "assignee": "E010",
+      "root_cause": "race_condition",
+      "customer_impact": true
+    },
+    {
+      "id": "INC006",
+      "date": "2024-10-22",
+      "severity": "high",
+      "service": "api-gateway",
+      "description": "Rate limiting not working",
+      "resolution_hours": 3.0,
+      "assignee": "E010",
+      "root_cause": "config_error",
+      "customer_impact": false
+    },
+    {
+      "id": "INC007",
+      "date": "2024-10-25",
+      "severity": "medium",
+      "service": "user-service",
+      "description": "Profile updates failing",
+      "resolution_hours": 2.0,
+      "assignee": "E002",
+      "root_cause": "validation_bug",
+      "customer_impact": true
+    },
+    {
+      "id": "INC008",
+      "date": "2024-10-28",
+      "severity": "high",
+      "service": "auth-service",
+      "description": "Session expiration issues",
+      "resolution_hours": 5.0,
+      "assignee": "E003",
+      "root_cause": "cache_invalidation",
+      "customer_impact": true
+    },
+    {
+      "id": "INC009",
+      "date": "2024-11-01",
+      "severity": "critical",
+      "service": "database",
+      "description": "Primary DB failover",
+      "resolution_hours": 8.0,
+      "assignee": "E010",
+      "root_cause": "hardware_failure",
+      "customer_impact": true
+    },
+    {
+      "id": "INC010",
+      "date": "2024-11-05",
+      "severity": "low",
+      "service": "logging-service",
+      "description": "Missing logs",
+      "resolution_hours": 1.0,
+      "assignee": "E011",
+      "root_cause": "disk_space",
+      "customer_impact": false
+    },
+    {
+      "id": "INC011",
+      "date": "2024-11-08",
+      "severity": "medium",
+      "service": "notification-service",
+      "description": "Push notifications delayed",
+      "resolution_hours": 2.5,
+      "assignee": "E011",
+      "root_cause": "third_party_api",
+      "customer_impact": true
+    },
+    {
+      "id": "INC012",
+      "date": "2024-11-12",
+      "severity": "high",
+      "service": "payment-gateway",
+      "description": "Refund processing errors",
+      "resolution_hours": 4.5,
+      "assignee": "E002",
+      "root_cause": "api_version_mismatch",
+      "customer_impact": true
+    }
+  ],
+  "support_tickets": [
+    {
+      "id": "T001",
+      "created": "2024-10-01",
+      "category": "billing",
+      "priority": "high",
+      "status": "resolved",
+      "resolution_time_hours": 4,
+      "customer_satisfaction": 5,
+      "assignee": "E012"
+    },
+    {
+      "id": "T002",
+      "created": "2024-10-02",
+      "category": "technical",
+      "priority": "medium",
+      "status": "resolved",
+      "resolution_time_hours": 8,
+      "customer_satisfaction": 4,
+      "assignee": "E013"
+    },
+    {
+      "id": "T003",
+      "created": "2024-10-03",
+      "category": "account",
+      "priority": "low",
+      "status": "resolved",
+      "resolution_time_hours": 2,
+      "customer_satisfaction": 5,
+      "assignee": "E014"
+    },
+    {
+      "id": "T004",
+      "created": "2024-10-05",
+      "category": "billing",
+      "priority": "critical",
+      "status": "resolved",
+      "resolution_time_hours": 1,
+      "customer_satisfaction": 5,
+      "assignee": "E012"
+    },
+    {
+      "id": "T005",
+      "created": "2024-10-07",
+      "category": "technical",
+      "priority": "high",
+      "status": "resolved",
+      "resolution_time_hours": 24,
+      "customer_satisfaction": 3,
+      "assignee": "E013"
+    },
+    {
+      "id": "T006",
+      "created": "2024-10-10",
+      "category": "feature_request",
+      "priority": "low",
+      "status": "open",
+      "resolution_time_hours": null,
+      "customer_satisfaction": null,
+      "assignee": "E012"
+    },
+    {
+      "id": "T007",
+      "created": "2024-10-12",
+      "category": "technical",
+      "priority": "critical",
+      "status": "resolved",
+      "resolution_time_hours": 2,
+      "customer_satisfaction": 4,
+      "assignee": "E012"
+    },
+    {
+      "id": "T008",
+      "created": "2024-10-15",
+      "category": "billing",
+      "priority": "medium",
+      "status": "resolved",
+      "resolution_time_hours": 6,
+      "customer_satisfaction": 4,
+      "assignee": "E014"
+    },
+    {
+      "id": "T009",
+      "created": "2024-10-18",
+      "category": "account",
+      "priority": "high",
+      "status": "resolved",
+      "resolution_time_hours": 3,
+      "customer_satisfaction": 5,
+      "assignee": "E013"
+    },
+    {
+      "id": "T010",
+      "created": "2024-10-20",
+      "category": "technical",
+      "priority": "medium",
+      "status": "in_progress",
+      "resolution_time_hours": null,
+      "customer_satisfaction": null,
+      "assignee": "E014"
+    },
+    {
+      "id": "T011",
+      "created": "2024-10-22",
+      "category": "billing",
+      "priority": "low",
+      "status": "resolved",
+      "resolution_time_hours": 12,
+      "customer_satisfaction": 4,
+      "assignee": "E012"
+    },
+    {
+      "id": "T012",
+      "created": "2024-10-25",
+      "category": "technical",
+      "priority": "high",
+      "status": "resolved",
+      "resolution_time_hours": 5,
+      "customer_satisfaction": 4,
+      "assignee": "E013"
+    },
+    {
+      "id": "T013",
+      "created": "2024-10-28",
+      "category": "feature_request",
+      "priority": "medium",
+      "status": "open",
+      "resolution_time_hours": null,
+      "customer_satisfaction": null,
+      "assignee": "E012"
+    },
+    {
+      "id": "T014",
+      "created": "2024-11-01",
+      "category": "account",
+      "priority": "critical",
+      "status": "resolved",
+      "resolution_time_hours": 1,
+      "customer_satisfaction": 5,
+      "assignee": "E012"
+    },
+    {
+      "id": "T015",
+      "created": "2024-11-03",
+      "category": "technical",
+      "priority": "high",
+      "status": "in_progress",
+      "resolution_time_hours": null,
+      "customer_satisfaction": null,
+      "assignee": "E014"
+    },
+    {
+      "id": "T016",
+      "created": "2024-11-05",
+      "category": "billing",
+      "priority": "medium",
+      "status": "resolved",
+      "resolution_time_hours": 4,
+      "customer_satisfaction": 5,
+      "assignee": "E013"
+    },
+    {
+      "id": "T017",
+      "created": "2024-11-08",
+      "category": "technical",
+      "priority": "low",
+      "status": "resolved",
+      "resolution_time_hours": 48,
+      "customer_satisfaction": 2,
+      "assignee": "E014"
+    },
+    {
+      "id": "T018",
+      "created": "2024-11-10",
+      "category": "account",
+      "priority": "medium",
+      "status": "open",
+      "resolution_time_hours": null,
+      "customer_satisfaction": null,
+      "assignee": "E013"
+    }
+  ],
+  "monthly_metrics": [
+    {
+      "month": "2024-07",
+      "revenue": 1250000,
+      "new_customers": 145,
+      "churn_rate": 2.1,
+      "nps_score": 72,
+      "uptime_percent": 99.95
+    },
+    {
+      "month": "2024-08",
+      "revenue": 1320000,
+      "new_customers": 168,
+      "churn_rate": 1.8,
+      "nps_score": 74,
+      "uptime_percent": 99.91
+    },
+    {
+      "month": "2024-09",
+      "revenue": 1280000,
+      "new_customers": 152,
+      "churn_rate": 2.5,
+      "nps_score": 71,
+      "uptime_percent": 99.87
+    },
+    {
+      "month": "2024-10",
+      "revenue": 1410000,
+      "new_customers": 189,
+      "churn_rate": 1.9,
+      "nps_score": 75,
+      "uptime_percent": 99.82
+    },
+    {
+      "month": "2024-11",
+      "revenue": 1380000,
+      "new_customers": 174,
+      "churn_rate": 2.2,
+      "nps_score": 73,
+      "uptime_percent": 99.78
+    }
+  ]
+}

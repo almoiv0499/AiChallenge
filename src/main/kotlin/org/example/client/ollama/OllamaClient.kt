@@ -245,8 +245,8 @@ class OllamaClient(
         val startTime = System.currentTimeMillis()
         val body = json.encodeToString(OllamaChatRequest.serializer(), request)
         if (System.getenv("OLLAMA_DEBUG") == "true") {
-            println("🦙 [OLLAMA_DEBUG] Request options: ${request.options}")
-            println("🦙 [OLLAMA_DEBUG] Request body (excerpt): ${body.take(500)}...")
+            println("🦙 [OLLAMA_DEBUG] Chat request options: ${request.options}")
+            println("🦙 [OLLAMA_DEBUG] Chat request body (excerpt): ${body.take(500)}...")
         }
         val response = client.post("$baseUrl/chat") {
             contentType(ContentType.Application.Json)
@@ -357,9 +357,14 @@ class OllamaClient(
 
     private suspend fun sendGenerateRequest(request: OllamaGenerateRequest): OllamaGenerateResponse {
         val startTime = System.currentTimeMillis()
+        val body = json.encodeToString(OllamaGenerateRequest.serializer(), request)
+        if (System.getenv("OLLAMA_DEBUG") == "true") {
+            println("🦙 [OLLAMA_DEBUG] Generate request options: ${request.options}")
+            println("🦙 [OLLAMA_DEBUG] Generate request body (excerpt): ${body.take(500)}...")
+        }
         val response = client.post("$baseUrl/generate") {
             contentType(ContentType.Application.Json)
-            setBody(request)
+            setBody(io.ktor.http.content.TextContent(body, ContentType.Application.Json))
         }
         val responseTimeMs = System.currentTimeMillis() - startTime
 

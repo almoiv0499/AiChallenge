@@ -11,7 +11,8 @@ import org.example.models.ChatResponse
 class OllamaChatService(
     private val ollamaClient: OllamaClient,
     private val model: String = "llama3.2",
-    private val systemPrompt: String? = null
+    private val systemPrompt: String? = null,
+    private val options: OllamaOptions? = null
 ) {
     private val conversationHistory = mutableListOf<OllamaMessage>()
 
@@ -29,14 +30,16 @@ class OllamaChatService(
                 ollamaClient.chatWithSystemPrompt(
                     systemPrompt = systemPrompt,
                     userMessage = userMessage,
-                    model = model
+                    model = model,
+                    options = options
                 )
             } else {
                 // Последующие сообщения
                 ollamaClient.chat(
                     message = userMessage,
                     model = model,
-                    conversationHistory = conversationHistory
+                    conversationHistory = conversationHistory,
+                    options = options
                 )
             }
         } else {
@@ -44,7 +47,8 @@ class OllamaChatService(
             ollamaClient.chat(
                 message = userMessage,
                 model = model,
-                conversationHistory = conversationHistory
+                conversationHistory = conversationHistory,
+                options = options
             )
         }
 

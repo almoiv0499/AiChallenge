@@ -64,7 +64,8 @@ fun main(args: Array<String>) = runBlocking {
     val chatService = OllamaChatService(
         ollamaClient = ollamaClient,
         model = modelToUse,
-        systemPrompt = systemPrompt
+        systemPrompt = systemPrompt,
+        options = llmConfig.toOllamaOptions()
     )
     
     // Создаем хранилище истории

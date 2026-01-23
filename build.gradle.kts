@@ -129,7 +129,7 @@ tasks.register<JavaExec>("runChatServer") {
     description = "Запускает REST API чат-сервер с локальной моделью Ollama"
     mainClass.set("org.example.chat.ChatServerMainKt")
     classpath = sourceSets["main"].runtimeClasspath
-    
+
     // Переменные окружения можно задать через -Penv.port=8080 и т.д.
     if (project.hasProperty("env.port")) {
         environment("PORT", project.property("env.port"))
@@ -137,4 +137,13 @@ tasks.register<JavaExec>("runChatServer") {
     if (project.hasProperty("env.model")) {
         environment("OLLAMA_MODEL", project.property("env.model"))
     }
+}
+
+// Задача для запуска локального аналитика данных
+tasks.register<JavaExec>("runDataAnalytics") {
+    group = "application"
+    description = "Запускает локальный аналитик данных с Ollama"
+    mainClass.set("org.example.analytics.DataAnalyticsMainKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    standardInput = System.`in`
 }
