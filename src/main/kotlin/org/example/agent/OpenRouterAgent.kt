@@ -5,16 +5,26 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.example.agent.android.DeviceSearchExecutor
 import org.example.client.OpenRouterClient
 import org.example.config.OpenRouterConfig
-import org.example.models.*
+import org.example.config.UserProfileConfig
+import org.example.embedding.RagService
+import org.example.models.ApiResponse
+import org.example.models.ChatResponse
+import org.example.models.OpenRouterFunctionCallInput
+import org.example.models.OpenRouterFunctionCallOutput
+import org.example.models.OpenRouterInputContentItem
+import org.example.models.OpenRouterInputMessage
+import org.example.models.OpenRouterOutputItem
+import org.example.models.OpenRouterRequest
+import org.example.models.OpenRouterResponse
+import org.example.models.OpenRouterTool
+import org.example.models.ToolCallResult
 import org.example.storage.HistoryStorage
 import org.example.tools.ToolRegistry
 import org.example.ui.ConsoleUI
-import org.example.agent.android.DeviceSearchExecutor
-import org.example.embedding.RagService
 
 class OpenRouterAgent(
     private val client: OpenRouterClient,
@@ -586,9 +596,20 @@ class OpenRouterAgent(
         )
 
     private fun addSystemPrompt() {
+        // Базовый системный промпт
+        val basePrompt = SIMPLE_SYSTEM_PROMPT
+
+        // Добавляем персонализацию из профиля пользователя
+        val personalization = UserProfileConfig.generateSystemPromptAddition()
+        val fullPrompt = if (personalization.isNotEmpty()) {
+            basePrompt + personalization
+        } else {
+            basePrompt
+        }
+
         val message = OpenRouterInputMessage(
             role = "system",
-            content = listOf(OpenRouterInputContentItem(type = "input_text", text = SIMPLE_SYSTEM_PROMPT))
+            content = listOf(OpenRouterInputContentItem(type = "input_text", text = fullPrompt))
         )
         conversationHistory.add(
             json.encodeToJsonElement(

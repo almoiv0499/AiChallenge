@@ -51,10 +51,21 @@ object OllamaLlmConfig {
 
     fun loadSystemPrompt(): String? {
         val explicit = System.getenv(SYSTEM_PROMPT_ENV)
-        if (!explicit.isNullOrBlank()) return explicit.trim()
-        return when (System.getenv(PROMPT_PRESET_ENV)?.lowercase()) {
-            "optimized" -> OPTIMIZED_CHAT_PROMPT
-            else -> DEFAULT_CHAT_PROMPT
+        val basePrompt = if (!explicit.isNullOrBlank()) {
+            explicit.trim()
+        } else {
+            when (System.getenv(PROMPT_PRESET_ENV)?.lowercase()) {
+                "optimized" -> OPTIMIZED_CHAT_PROMPT
+                else -> DEFAULT_CHAT_PROMPT
+            }
+        }
+
+        // Добавляем персонализацию из профиля пользователя
+        val personalization = UserProfileConfig.generateSystemPromptAddition()
+        return if (personalization.isNotEmpty()) {
+            basePrompt + personalization
+        } else {
+            basePrompt
         }
     }
 

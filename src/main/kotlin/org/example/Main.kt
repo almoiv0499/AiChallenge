@@ -37,6 +37,9 @@ import org.example.project.GetProjectStatusTool
 import org.example.project.GetTeamCapacityTool
 import org.example.client.ollama.OllamaClient
 import org.example.client.ollama.OllamaChatService
+import org.example.config.OllamaLlmConfig
+import org.example.config.UserProfileConfig
+import org.example.config.ProfileSetupWizard
 
 fun main(args: Array<String>) = runBlocking {
     // Проверяем только аргумент help
@@ -223,9 +226,15 @@ private suspend fun runApplication() {
         }
     } else {
         // Интерактивный режим для локальной разработки
-        // Автоматически определяем режим: Ollama по умолчанию (офлайн)
-        val mode = determineMode()
-        
+        // Загружаем профиль пользователя для персонализации
+        val profile = UserProfileConfig.loadProfile()
+        if (profile.name.isNotEmpty()) {
+            println("👤 Персонализация активирована для: ${profile.name}")
+        }
+
+        // Интерактивный выбор режима
+        val mode = requestMode()
+
         when (mode) {
             Mode.USE_OLLAMA -> {
                 ConsoleUI.printWelcomeOffline()
@@ -445,10 +454,30 @@ private suspend fun runChatLoop(
     ragService: org.example.embedding.RagService?
 ) {
     var taskScheduler: TaskReminderScheduler? = null
+    val profileWizard = ProfileSetupWizard.getInstance()
+
     while (true) {
-        ConsoleUI.printUserPrompt()
+        // Если активен мастер настройки профиля - показываем специальный промпт
+        if (profileWizard.isActive()) {
+            print("📝 Ответ: ")
+        } else {
+            ConsoleUI.printUserPrompt()
+        }
+
         val input = readlnOrNull()?.trim() ?: continue
         if (input.isEmpty()) continue
+
+        // Если активен мастер настройки профиля - обрабатываем ответы
+        if (profileWizard.isActive()) {
+            val result = profileWizard.processAnswer(input)
+            println(result)
+            // После завершения настройки перезагружаем профиль
+            if (!profileWizard.isActive()) {
+                UserProfileConfig.reloadProfile()
+            }
+            continue
+        }
+
         when {
             isExitCommand(input) -> {
                 ConsoleUI.printGoodbye()
@@ -480,6 +509,9 @@ private suspend fun runChatLoop(
             }
             isClearTasksCommand(input) -> {
                 clearTasksDatabase()
+            }
+            isProfileCommand(input) -> {
+                handleProfileCommand(input)
             }
             else -> processUserMessage(agent, input)
         }
@@ -520,6 +552,86 @@ private fun isClearTasksCommand(input: String): Boolean =
 
 private fun isTaskReminderCommand(input: String): Boolean =
     input.lowercase() in listOf("/tasks", "/task-reminder", "/reminder")
+
+private fun isProfileCommand(input: String): Boolean =
+    input.lowercase().startsWith("/profile")
+
+/**
+ * Обрабатывает команду /profile для управления профилем пользователя.
+ * /profile - показать текущий профиль
+ * /profile reload - перезагрузить профиль
+ */
+/**
+ * Обрабатывает команду /profile для управления профилем пользователя.
+ * /profile - показать текущий профиль
+ * /profile setup - запустить мастер настройки
+ * /profile reload - перезагрузить профиль
+ * Возвращает true, если запущен мастер настройки (нужно перейти в режим setup)
+ */
+private fun handleProfileCommand(input: String): Boolean {
+    val args = input.lowercase().removePrefix("/profile").trim()
+
+    when (args) {
+        "setup", "настроить", "настройка" -> {
+            val wizard = ProfileSetupWizard.getInstance()
+            println(wizard.start())
+            return true // Сигнал о переходе в режим setup
+        }
+        "reload", "refresh" -> {
+            println("🔄 Перезагрузка профиля пользователя...")
+            UserProfileConfig.reloadProfile()
+            val profile = UserProfileConfig.loadProfile()
+            if (profile.name.isNotEmpty()) {
+                println("✅ Профиль перезагружен: ${profile.name}")
+            } else {
+                println("⚠️ Профиль не настроен. Используйте /profile setup для настройки")
+            }
+        }
+        else -> {
+            // Показать текущий профиль
+            val profile = UserProfileConfig.loadProfile()
+            if (profile.name.isEmpty()) {
+                println("""
+                    |⚠️ Профиль пользователя не настроен!
+                    |
+                    |🚀 Для настройки введите: /profile setup
+                    |   Я задам несколько вопросов и заполню профиль автоматически
+                    |
+                    |💡 Или отредактируйте файл user_profile.json вручную
+                    |
+                    |📌 Персонализация позволяет агенту:
+                    |   • Обращаться к вам по имени
+                    |   • Учитывать ваш технический уровень
+                    |   • Адаптировать стиль общения
+                    |   • Помнить ваши интересы и цели
+                """.trimMargin())
+            } else {
+                println("""
+                    |👤 ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
+                    |═══════════════════════════════════════
+                    |📛 Имя: ${profile.name}
+                    |🏷️ Обращение: ${profile.nickname.ifEmpty { profile.name }}
+                    |💼 Профессия: ${profile.profession.ifEmpty { "не указано" }}
+                    |📍 Местоположение: ${profile.location.ifEmpty { "не указано" }}
+                    |🎓 Тех. уровень: ${profile.technicalLevel}
+                    |
+                    |💻 Технологии: ${profile.techStack.joinToString(", ").ifEmpty { "не указано" }}
+                    |🎯 Интересы: ${profile.interests.joinToString(", ").ifEmpty { "не указано" }}
+                    |🎯 Цели: ${profile.currentGoals.joinToString(", ").ifEmpty { "не указано" }}
+                    |
+                    |🗣️ Стиль общения: ${profile.communicationPreferences.style}
+                    |📝 Длина ответов: ${profile.communicationPreferences.responseLength}
+                    |😀 Эмодзи: ${if (profile.communicationPreferences.useEmoji) "да" else "нет"}
+                    |⏰ Рабочие часы: ${profile.workSchedule.workStartTime} - ${profile.workSchedule.workEndTime}
+                    |═══════════════════════════════════════
+                    |💡 /profile setup  - перенастроить профиль
+                    |💡 /profile reload - перезагрузить из файла
+                """.trimMargin())
+            }
+        }
+    }
+    return false
+}
 
 /**
  * Toggles the task reminder scheduler on/off.
@@ -783,28 +895,47 @@ private suspend fun runOllama(): Boolean {
         modelName
     }
     
-    // Создаем системный промпт и сервис
-    val systemPrompt = """
-        Ты полезный AI-ассистент. Отвечай на вопросы пользователя кратко и по делу.
-        Используй дружелюбный и профессиональный тон.
-    """.trimIndent()
-    
+    // Загружаем конфигурацию LLM
+    val llmConfig = OllamaLlmConfig.load()
+    val systemPrompt = llmConfig.systemPrompt
+
     val chatService = OllamaChatService(
         ollamaClient = ollamaClient,
         model = defaultModel,
-        systemPrompt = systemPrompt
+        systemPrompt = systemPrompt,
+        options = llmConfig.toOllamaOptions()
     )
     
     println("\n✅ Ollama готов к работе! Модель: $defaultModel")
     println("   🌐 Режим: Офлайн (работает без интернета)")
+    println("   ⚙️ LLM: temp=${llmConfig.temperature}, max_tokens=${llmConfig.maxTokens}, num_ctx=${llmConfig.numCtx}")
     println("   Введите ваш вопрос:\n")
-    
+
+    val profileWizard = ProfileSetupWizard.getInstance()
+
     // Запускаем цикл общения
     while (true) {
-        ConsoleUI.printUserPrompt()
+        // Если активен мастер настройки профиля - показываем специальный промпт
+        if (profileWizard.isActive()) {
+            print("📝 Ответ: ")
+        } else {
+            ConsoleUI.printUserPrompt()
+        }
+
         val input = readlnOrNull()?.trim() ?: continue
         if (input.isEmpty()) continue
-        
+
+        // Если активен мастер настройки профиля - обрабатываем ответы
+        if (profileWizard.isActive()) {
+            val result = profileWizard.processAnswer(input)
+            println(result)
+            // После завершения настройки перезагружаем профиль
+            if (!profileWizard.isActive()) {
+                UserProfileConfig.reloadProfile()
+            }
+            continue
+        }
+
         when {
             isExitCommand(input) -> {
                 ConsoleUI.printGoodbye()
@@ -823,6 +954,9 @@ private suspend fun runOllama(): Boolean {
             }
             isRunningModelsCommand(input) -> {
                 printRunningOllamaModels(ollamaClient)
+            }
+            isProfileCommand(input) -> {
+                handleProfileCommand(input)
             }
             else -> {
                 try {
@@ -952,6 +1086,9 @@ private fun printOllamaHelp() {
         • /help            - эта справка
         • /models          - показать список доступных моделей
         • /running         - показать список запущенных моделей (в памяти)
+        • /profile         - показать профиль пользователя
+        • /profile setup   - интерактивная настройка профиля (диалог)
+        • /profile reload  - перезагрузить профиль из файла
         
         ═══════════════════════════════════════════════════════════════
         🔧 НАСТРОЙКИ
